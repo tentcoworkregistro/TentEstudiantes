@@ -43,6 +43,8 @@
         
         const forgotCodeMessageDiv = document.getElementById('forgotCodeMessageDiv');
         const recoveredCodeMailtoContainer = document.getElementById('recoveredCodeMailtoContainer');
+        // Nuevo contenedor para el botón de "Olvidé mi código" en la sección de registro
+        const sendCodeIfRegisteredContainer = document.getElementById('sendCodeIfRegisteredContainer');
 
         const showRegistrationBtn = document.getElementById('showRegistrationBtn');
         const showTerminalBtn = document.getElementById('showTerminalBtn');
@@ -168,9 +170,9 @@
         function handleInitialNavigation() {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
-            const modoRegistro = params.get('modo'); // <--- LÍNEA AGREGADA
+            const modoRegistro = params.get('modo'); // Nuevo parámetro para el modo de registro
 
-            if (modoRegistro === 'registro') { // <--- BLOQUE 'IF' AGREGADO
+            if (modoRegistro === 'registro') {
                 // Si el modo es 'registro', ocultar la pestaña de "Ingresar" y forzar la de "Registrarse"
                 if (showTerminalBtn) {
                     showTerminalBtn.classList.add('hidden'); // Oculta el botón de la pestaña "Ingresar"
@@ -253,6 +255,7 @@
                 showButtonLoading(registerButton, 'Registrando...');
                 codeDisplay.classList.add('hidden');
                 mailtoButtonContainer.classList.add('hidden');
+                sendCodeIfRegisteredContainer.classList.add('hidden'); // Ocultar este contenedor al inicio de cada intento de registro
                 
                 const fullName = registrationForm.fullName.value.trim();
                 const faculty = registrationForm.faculty.value.trim();
@@ -292,8 +295,18 @@
                     const q = query(studentsRef, where("email", "==", email));
                     const querySnapshot = await getDocs(q);
                     if (!querySnapshot.empty) {
+                        const studentData = querySnapshot.docs[0].data();
+                        const accessCode = studentData.accessCode;
+                        const studentFullName = studentData.fullName; // Usar un nombre diferente para evitar conflicto
+
                         showMessage(messagePlaceholder, 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
-                        hideButtonLoading(registerButton); return;
+                        
+                        const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Recordatorio de tu código para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${studentFullName}!\n\nHas solicitado un recordatorio de tu código de acceso para Tent Cowork.\n\nTu código es: ${accessCode}\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
+                        sendCodeIfRegisteredContainer.innerHTML = `<p class="text-sm text-gray-600 mb-2 mt-4">Haz clic abajo para enviarte tu código por email:</p><a href="${mailtoLink}" class="inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme mi código: ${accessCode}</a>`;
+                        sendCodeIfRegisteredContainer.classList.remove('hidden');
+                        
+                        hideButtonLoading(registerButton); 
+                        return;
                     }
                     const accessCode = generateAccessCode(); 
                     const studentData = { fullName, faculty, phone, email, accessCode, isCheckedIn: false, lastCheckInTimestamp: null, createdAt: serverTimestamp() };
@@ -304,7 +317,7 @@
                     const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Tu código de acceso para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nTu código de acceso para Tent Cowork es: ${accessCode}\n\nRecuerda este código para tus próximos ingresos.\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
                     mailtoButtonContainer.innerHTML = `<a href="${mailtoLink}" class="mt-3 inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme el código a mi email</a>`;
                     mailtoButtonContainer.classList.remove('hidden');
-                    showMessage(messagePlaceholder, `¡Registro exitoso, ${fullName}! Revisa tu código arriba y puedes auto-enviártelo por email.`, 'success');
+                    showMessage(messagePlaceholder, `¡Registro exitoso, ${fullName}! Guarda el código de acceso de abajo y auto-enviátelo por email para no perderlo.`, 'success');
                 } catch (error) {
                     console.error("Error al registrar estudiante: ", error);
                     showMessage(messagePlaceholder, 'Error al registrar. Inténtalo de nuevo.', 'error');
@@ -411,11 +424,11 @@
     <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative">
         <header class="mb-6 flex items-center justify-start">
             <!-- Logo de Tent Cowork -->
-           <div class="flex items-center">
+            <div class="flex items-center">
                 <img src="https://i.postimg.cc/2yMS3Kgy/destacada-tent-1.jpg" 
-                    alt="Tent Cowork Logo" 
-                    class="h-24 w-24 rounded-xl object-cover mr-4 shadow-sm"
-                    onerror="this.onerror=null; this.src='https://placehold.co/96x96/cccccc/000000?text=Logo+No+Cargado';">
+                     alt="Tent Cowork Logo" 
+                     class="h-24 w-24 rounded-xl object-cover mr-4 shadow-sm"
+                     onerror="this.onerror=null; this.src='https://placehold.co/96x96/cccccc/000000?text=Logo+No+Cargado';">
                 
                 <div class="flex flex-col text-left">
                     <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
@@ -479,6 +492,8 @@
             </form>
             <div id="codeDisplay" class="hidden mt-4 p-4 bg-yellow-50 border-yellow-200 rounded-md text-center text-yellow-800"></div>
             <div id="mailtoButtonContainer" class="hidden mt-2"></div>
+            <!-- Nuevo contenedor para el botón de enviar código si el email ya está registrado -->
+            <div id="sendCodeIfRegisteredContainer" class="hidden mt-2"></div>
         </section>
         
         <footer class="mt-8 text-center text-sm text-gray-500">
