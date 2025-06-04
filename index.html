@@ -353,7 +353,7 @@
                     if (!student.isCheckedIn) {
                         await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: true, lastCheckInTimestamp: serverTimestamp() });
                         await addDoc(sessionsRef, { studentId: studentId, fullName: student.fullName, email: student.email, checkInTimestamp: serverTimestamp(), checkOutTimestamp: null, durationMinutes: null });
-                        showMessage(messagePlaceholder, `¡Bienvenido, ${student.fullName}! Check-in realizado.`, 'success');
+                        showMessage(messagePlaceholder, `¡Bienvenido/a, ${student.fullName}! Check-in realizado.`, 'success');
                         studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-tent-green">DENTRO</span>.`;
                         studentStatusDiv.classList.remove('hidden');
                     } else {
