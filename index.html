@@ -6,13 +6,6 @@
     <title>Tent Cowork - Check-in/Checkout</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Configuración para PWA -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#014023"> <!-- Color de la barra de estado de la app (Tent Green) -->
-    <link rel="apple-touch-icon" href="https://placehold.co/192x192/014023/FFFFFF?text=TENT"> <!-- Icono para iOS -->
-    <!-- Puedes añadir más tamaños de iconos aquí para diferentes dispositivos -->
-    
     <script type="module">
         // Configuración de Firebase (reemplaza con tus datos)
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -75,7 +68,7 @@
         // Referencias a los botones para manejar el estado de carga
         const registerButton = registrationForm.querySelector('button[type="submit"]');
         const terminalSubmitButton = terminalForm.querySelector('button[type="submit"]');
-        cconst checkStatusCodeButton = document.getElementById('checkStatusCodeBtn');
+        const checkStatusCodeButton = document.getElementById('checkStatusCodeBtn');
         const forgotCodeSubmitButton = forgotCodeForm.querySelector('button[type="submit"]');
 
         let originalRegisterButtonText = registerButton.textContent;
@@ -177,39 +170,24 @@
         function handleInitialNavigation() {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
-            const modoRegistro = params.get('modo'); 
+            const modoRegistro = params.get('modo'); // Nuevo parámetro para el modo de registro
 
             if (modoRegistro === 'registro') {
+                // Si el modo es 'registro', ocultar la pestaña de "Ingresar" y forzar la de "Registrarse"
                 if (showTerminalBtn) {
-                    showTerminalBtn.classList.add('hidden'); 
+                    showTerminalBtn.classList.add('hidden'); // Oculta el botón de la pestaña "Ingresar"
                 }
-                terminalSection.classList.add('hidden'); 
-                registrationSection.classList.remove('hidden'); 
-                styleTabButton(showRegistrationBtn, true); 
-                styleTabButton(showTerminalBtn, false); 
+                terminalSection.classList.add('hidden'); // Asegura que la sección de terminal esté oculta
+                registrationSection.classList.remove('hidden'); // Muestra siempre la sección de registro
+                styleTabButton(showRegistrationBtn, true); // Activa la pestaña de registro
+                styleTabButton(showTerminalBtn, false); // Desactiva la pestaña de ingresar (aunque esté oculta)
             } else {
+                // Lógica de navegación original si no está en modo 'registro'
                 navigateTo(view === 'register' ? 'registration' : 'terminal');
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            handleInitialNavigation();
-
-            // Registrar el Service Worker para PWA
-            // Solo intenta registrar el Service Worker si el protocolo es HTTP o HTTPS
-            if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(registration => {
-                        console.log('Service Worker registrado con éxito:', registration);
-                    })
-                    .catch(error => {
-                        console.error('Fallo el registro del Service Worker:', error);
-                    });
-            } else if ('serviceWorker' in navigator) {
-                console.warn('Service Worker no registrado: El protocolo URL no es HTTP ni HTTPS.');
-            }
-        });
-
+        window.addEventListener('DOMContentLoaded', handleInitialNavigation);
         if (showRegistrationBtn) showRegistrationBtn.addEventListener('click', () => navigateTo('registration'));
         if (showTerminalBtn) showTerminalBtn.addEventListener('click', () => navigateTo('terminal'));
 
@@ -277,7 +255,7 @@
                 showButtonLoading(registerButton, 'Registrando...');
                 codeDisplay.classList.add('hidden');
                 mailtoButtonContainer.classList.add('hidden');
-                sendCodeIfRegisteredContainer.classList.add('hidden'); 
+                sendCodeIfRegisteredContainer.classList.add('hidden'); // Ocultar este contenedor al inicio de cada intento de registro
                 
                 const fullName = registrationForm.fullName.value.trim();
                 const faculty = registrationForm.faculty.value.trim();
@@ -319,7 +297,7 @@
                     if (!querySnapshot.empty) {
                         const studentData = querySnapshot.docs[0].data();
                         const accessCode = studentData.accessCode;
-                        const studentFullName = studentData.fullName; 
+                        const studentFullName = studentData.fullName; // Usar un nombre diferente para evitar conflicto
 
                         showMessage(messagePlaceholder, 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
                         
@@ -443,7 +421,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-tent-orange selection:text-white">
 
-    <div class="w-full mx-auto p-4 sm:p-6 md:p-8 lg:max-w-4xl bg-white shadow-xl rounded-lg relative">
+    <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative">
         <header class="mb-6 flex items-center justify-start">
             <!-- Logo de Tent Cowork -->
             <div class="flex items-center">
@@ -454,7 +432,7 @@
                 
                 <div class="flex flex-col text-left">
                     <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
-                    <p class="text-gray-600">Check in/out para estudiantes</p>
+                    <p class="text-gray-600">Sistema de Check-in / Check-out</p>
                 </div>
             </div>
 
@@ -478,9 +456,9 @@
                 <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105 active:scale-95 active:shadow-inner">
                     Registrar Entrada / Salida
                 </button>
-                 <button type="button" id="checkStatusCodeBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105 active:scale-95 active:shadow-inner">
+                <button type="button" id="checkStatusCodeBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105 active:scale-95 active:shadow-inner">
                     Consultar mi Estado
-                </button>  
+                </button>
             </form>
             <div class="text-center mt-3">
                 <button type="button" id="openForgotCodeModalBtn" class="text-sm text-tent-orange hover:text-opacity-80 hover:underline">¿Olvidaste tu código?</button>
