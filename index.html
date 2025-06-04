@@ -40,13 +40,9 @@
         const codeDisplay = document.getElementById('codeDisplay');
         const mailtoButtonContainer = document.getElementById('mailtoButtonContainer');
         const studentStatusDiv = document.getElementById('studentStatusDiv');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const terminalLoadingIndicator = document.getElementById('terminalLoadingIndicator');
-        const forgotCodeLoadingIndicator = document.getElementById('forgotCodeLoadingIndicator');
         
         const forgotCodeMessageDiv = document.getElementById('forgotCodeMessageDiv');
         const recoveredCodeMailtoContainer = document.getElementById('recoveredCodeMailtoContainer');
-
 
         const showRegistrationBtn = document.getElementById('showRegistrationBtn');
         const showTerminalBtn = document.getElementById('showTerminalBtn');
@@ -64,6 +60,44 @@
                         'tent-green': '#014023',
                     }
                 }
+            }
+        }
+
+        // Referencias a los botones para manejar el estado de carga
+        const registerButton = registrationForm.querySelector('button[type="submit"]');
+        const terminalSubmitButton = terminalForm.querySelector('button[type="submit"]');
+        const checkStatusCodeButton = document.getElementById('checkStatusCodeBtn');
+        const forgotCodeSubmitButton = forgotCodeForm.querySelector('button[type="submit"]');
+
+        let originalRegisterButtonText = registerButton.textContent;
+        let originalTerminalSubmitButtonText = terminalSubmitButton.textContent;
+        let originalCheckStatusCodeButtonText = checkStatusCodeButton.textContent;
+        let originalForgotCodeSubmitButtonText = forgotCodeSubmitButton.textContent;
+
+        // Función para mostrar estado de carga en un botón
+        function showButtonLoading(button, loadingText) {
+            if (button) {
+                if (button === registerButton) originalRegisterButtonText = button.textContent;
+                if (button === terminalSubmitButton) originalTerminalSubmitButtonText = button.textContent;
+                if (button === checkStatusCodeButton) originalCheckStatusCodeButtonText = button.textContent;
+                if (button === forgotCodeSubmitButton) originalForgotCodeSubmitButtonText = button.textContent;
+
+                button.textContent = loadingText;
+                button.disabled = true;
+                button.classList.add('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        // Función para ocultar estado de carga en un botón
+        function hideButtonLoading(button) {
+            if (button) {
+                if (button === registerButton) button.textContent = originalRegisterButtonText;
+                if (button === terminalSubmitButton) button.textContent = originalTerminalSubmitButtonText;
+                if (button === checkStatusCodeButton) button.textContent = originalCheckStatusCodeButtonText;
+                if (button === forgotCodeSubmitButton) button.textContent = originalForgotCodeSubmitButtonText;
+                
+                button.disabled = false;
+                button.classList.remove('opacity-75', 'cursor-not-allowed');
             }
         }
 
@@ -92,13 +126,10 @@
         
         initializeAuth();
 
-        function showLoading(indicator) { if (indicator) indicator.classList.remove('hidden'); }
-        function hideLoading(indicator) { if (indicator) indicator.classList.add('hidden'); }
-
         function showMessage(targetMessageContainer, message, type = 'success') {
             if (!targetMessageContainer) {
-                 console.warn("Contenedor de mensaje no encontrado. Mensaje no mostrado:", message);
-                 return; 
+                console.warn("Contenedor de mensaje no encontrado. Mensaje no mostrado:", message);
+                return; 
             }
             let bgColor = 'bg-blue-100', textColor = 'text-blue-700';
             if (type === 'success') { bgColor = 'bg-green-100'; textColor = 'text-tent-green'; }
@@ -106,7 +137,7 @@
             else if (type === 'info') { bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; }
 
             targetMessageContainer.textContent = message;
-            targetMessageContainer.className = `message-placeholder p-3 rounded-md text-sm mb-4 ${bgColor} ${textColor}`; // Asegura que message-placeholder esté
+            targetMessageContainer.className = `message-placeholder p-3 rounded-md text-sm mb-4 ${bgColor} ${textColor}`;
             targetMessageContainer.classList.remove('hidden');
             setTimeout(() => { targetMessageContainer.classList.add('hidden'); }, 7000); 
         }
@@ -137,7 +168,21 @@
         function handleInitialNavigation() {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
-            navigateTo(view === 'register' ? 'registration' : 'terminal');
+            const modoRegistro = params.get('modo'); // <--- LÍNEA AGREGADA
+
+            if (modoRegistro === 'registro') { // <--- BLOQUE 'IF' AGREGADO
+                // Si el modo es 'registro', ocultar la pestaña de "Ingresar" y forzar la de "Registrarse"
+                if (showTerminalBtn) {
+                    showTerminalBtn.classList.add('hidden'); // Oculta el botón de la pestaña "Ingresar"
+                }
+                terminalSection.classList.add('hidden'); // Asegura que la sección de terminal esté oculta
+                registrationSection.classList.remove('hidden'); // Muestra siempre la sección de registro
+                styleTabButton(showRegistrationBtn, true); // Activa la pestaña de registro
+                styleTabButton(showTerminalBtn, false); // Desactiva la pestaña de ingresar (aunque esté oculta)
+            } else {
+                // Lógica de navegación original si no está en modo 'registro'
+                navigateTo(view === 'register' ? 'registration' : 'terminal');
+            }
         }
 
         window.addEventListener('DOMContentLoaded', handleInitialNavigation);
@@ -156,24 +201,23 @@
         // Clic fuera del modal para cerrarlo
         if (forgotCodeModal) {
             forgotCodeModal.addEventListener('click', (event) => {
-                if (event.target === forgotCodeModal) { // Solo si se hace clic en el fondo del modal
-                     closeForgotCodeModalBtn.click(); // Simula clic en el botón de cerrar
+                if (event.target === forgotCodeModal) {
+                    closeForgotCodeModalBtn.click();
                 }
             });
         }
 
-
         if (forgotCodeForm) {
             forgotCodeForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                showLoading(forgotCodeLoadingIndicator);
+                showButtonLoading(forgotCodeSubmitButton, 'Buscando...');
                 forgotCodeMessageDiv.classList.add('hidden');
                 recoveredCodeMailtoContainer.classList.add('hidden');
 
                 const email = forgotCodeForm.recoveryEmail.value.toLowerCase().trim();
                 if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                     showMessage(forgotCodeMessageDiv, 'Por favor, ingresa un correo electrónico válido.', 'error');
-                    hideLoading(forgotCodeLoadingIndicator);
+                    hideButtonLoading(forgotCodeSubmitButton);
                     return;
                 }
 
@@ -198,42 +242,58 @@
                     console.error("Error al recuperar código: ", error);
                     showMessage(forgotCodeMessageDiv, 'Error al intentar recuperar el código. Inténtalo de nuevo.', 'error');
                 } finally {
-                    hideLoading(forgotCodeLoadingIndicator);
+                    hideButtonLoading(forgotCodeSubmitButton);
                 }
             });
         }
 
-
         if (registrationForm) {
             registrationForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                showLoading(loadingIndicator);
+                showButtonLoading(registerButton, 'Registrando...');
                 codeDisplay.classList.add('hidden');
                 mailtoButtonContainer.classList.add('hidden');
+                
                 const fullName = registrationForm.fullName.value.trim();
                 const faculty = registrationForm.faculty.value.trim();
                 const phone = registrationForm.phone.value.trim();
                 const email = registrationForm.email.value.toLowerCase().trim();
 
-                if (!fullName || !faculty || !email || !phone) {
-                    showMessage(registrationSection.querySelector('.message-placeholder'), 'Por favor, completa todos los campos obligatorios.', 'error');
-                    hideLoading(loadingIndicator); return;
+                const messagePlaceholder = registrationSection.querySelector('.message-placeholder');
+
+                if (!fullName) {
+                    showMessage(messagePlaceholder, 'Por favor, ingresa tu nombre completo.', 'error');
+                    hideButtonLoading(registerButton); return;
                 }
+                if (!faculty) {
+                    showMessage(messagePlaceholder, 'Por favor, ingresa tu facultad.', 'error');
+                    hideButtonLoading(registerButton); return;
+                }
+                if (!phone) {
+                    showMessage(messagePlaceholder, 'Por favor, ingresa tu número de teléfono.', 'error');
+                    hideButtonLoading(registerButton); return;
+                }
+                if (!email) {
+                    showMessage(messagePlaceholder, 'Por favor, ingresa tu correo electrónico.', 'error');
+                    hideButtonLoading(registerButton); return;
+                }
+
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                    showMessage(registrationSection.querySelector('.message-placeholder'), 'Por favor, ingresa un correo electrónico válido.', 'error');
-                    hideLoading(loadingIndicator); return;
+                    showMessage(messagePlaceholder, 'Por favor, ingresa un correo electrónico válido.', 'error');
+                    hideButtonLoading(registerButton); return;
                 }
                 if (!/^\+?[\d\s-]{7,15}$/.test(phone)) {
-                    showMessage(registrationSection.querySelector('.message-placeholder'), 'Por favor, ingresa un número de teléfono válido.', 'error');
-                    hideLoading(loadingIndicator); return;
+                    showMessage(messagePlaceholder, 'Por favor, ingresa un número de teléfono válido.', 'error');
+                    hideButtonLoading(registerButton); return;
                 }
+
                 try {
                     const studentsRef = collection(db, studentsCollectionPath);
                     const q = query(studentsRef, where("email", "==", email));
                     const querySnapshot = await getDocs(q);
                     if (!querySnapshot.empty) {
-                        showMessage(registrationSection.querySelector('.message-placeholder'), 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
-                        hideLoading(loadingIndicator); return;
+                        showMessage(messagePlaceholder, 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
+                        hideButtonLoading(registerButton); return;
                     }
                     const accessCode = generateAccessCode(); 
                     const studentData = { fullName, faculty, phone, email, accessCode, isCheckedIn: false, lastCheckInTimestamp: null, createdAt: serverTimestamp() };
@@ -244,31 +304,33 @@
                     const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Tu código de acceso para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nTu código de acceso para Tent Cowork es: ${accessCode}\n\nRecuerda este código para tus próximos ingresos.\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
                     mailtoButtonContainer.innerHTML = `<a href="${mailtoLink}" class="mt-3 inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme el código a mi email</a>`;
                     mailtoButtonContainer.classList.remove('hidden');
-                    showMessage(registrationSection.querySelector('.message-placeholder'), `¡Registro exitoso, ${fullName}! Revisa tu código arriba y puedes auto-enviártelo por email.`, 'success');
+                    showMessage(messagePlaceholder, `¡Registro exitoso, ${fullName}! Revisa tu código arriba y puedes auto-enviártelo por email.`, 'success');
                 } catch (error) {
                     console.error("Error al registrar estudiante: ", error);
-                    showMessage(registrationSection.querySelector('.message-placeholder'), 'Error al registrar. Inténtalo de nuevo.', 'error');
-                } finally { hideLoading(loadingIndicator); }
+                    showMessage(messagePlaceholder, 'Error al registrar. Inténtalo de nuevo.', 'error');
+                } finally { hideButtonLoading(registerButton); }
             });
         }
 
         if (terminalForm) {
             terminalForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                showLoading(terminalLoadingIndicator);
+                showButtonLoading(terminalSubmitButton, 'Procesando...');
                 studentStatusDiv.classList.add('hidden');
                 const accessCodeInput = terminalForm.accessCode.value.trim();
+                const messagePlaceholder = terminalSection.querySelector('.message-placeholder');
+
                 if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
-                    showMessage(terminalSection.querySelector('.message-placeholder'), 'Ingresa un código de acceso válido de 5 dígitos.', 'error');
-                    hideLoading(terminalLoadingIndicator); return;
+                    showMessage(messagePlaceholder, 'Ingresa un código de acceso válido de 5 dígitos.', 'error');
+                    hideButtonLoading(terminalSubmitButton); return;
                 }
                 try {
                     const studentsRef = collection(db, studentsCollectionPath);
                     const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
                     const studentQuerySnapshot = await getDocs(q);
                     if (studentQuerySnapshot.empty) {
-                        showMessage(terminalSection.querySelector('.message-placeholder'), 'Código de acceso no encontrado.', 'error');
-                        hideLoading(terminalLoadingIndicator); terminalForm.reset(); return;
+                        showMessage(messagePlaceholder, 'Código de acceso no encontrado.', 'error');
+                        hideButtonLoading(terminalSubmitButton); terminalForm.reset(); return;
                     }
                     const studentDoc = studentQuerySnapshot.docs[0];
                     const student = studentDoc.data();
@@ -278,7 +340,7 @@
                     if (!student.isCheckedIn) {
                         await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: true, lastCheckInTimestamp: serverTimestamp() });
                         await addDoc(sessionsRef, { studentId: studentId, fullName: student.fullName, email: student.email, checkInTimestamp: serverTimestamp(), checkOutTimestamp: null, durationMinutes: null });
-                        showMessage(terminalSection.querySelector('.message-placeholder'), `¡Bienvenido, ${student.fullName}! Check-in realizado.`, 'success');
+                        showMessage(messagePlaceholder, `¡Bienvenido, ${student.fullName}! Check-in realizado.`, 'success');
                         studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-tent-green">DENTRO</span>.`;
                         studentStatusDiv.classList.remove('hidden');
                     } else {
@@ -293,9 +355,9 @@
                             const durationMs = checkOutTime - checkInTime;
                             const durationMinutes = Math.max(0, Math.round(durationMs / (1000 * 60)));
                             await updateDoc(doc(db, sessionsCollectionPath, sessionDoc.id), { checkOutTimestamp: serverTimestamp(), durationMinutes: durationMinutes });
-                            showMessage(terminalSection.querySelector('.message-placeholder'), `¡Hasta luego, ${student.fullName}! Check-out realizado. Duración: ${durationMinutes} min.`, 'success');
+                            showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. Duración: ${durationMinutes} min.`, 'success');
                         } else {
-                            showMessage(terminalSection.querySelector('.message-placeholder'), `¡Hasta luego, ${student.fullName}! Check-out realizado. (No se encontró sesión activa).`, 'info');
+                            showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. (No se encontró sesión activa).`, 'info');
                         }
                         studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-red-600">FUERA</span>.`;
                         studentStatusDiv.classList.remove('hidden');
@@ -303,8 +365,8 @@
                     terminalForm.reset();
                 } catch (error) {
                     console.error("Error en el terminal: ", error);
-                    showMessage(terminalSection.querySelector('.message-placeholder'), 'Error en la operación. Inténtalo de nuevo.', 'error');
-                } finally { hideLoading(terminalLoadingIndicator); }
+                    showMessage(messagePlaceholder, 'Error en la operación. Inténtalo de nuevo.', 'error');
+                } finally { hideButtonLoading(terminalSubmitButton); }
             });
         }
 
@@ -312,48 +374,60 @@
         if (checkStatusCodeBtn) {
             checkStatusCodeBtn.addEventListener('click', async () => {
                 const accessCodeInput = terminalForm.accessCode.value.trim();
+                const messagePlaceholder = terminalSection.querySelector('.message-placeholder');
+
                 if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
-                    showMessage(terminalSection.querySelector('.message-placeholder'), 'Ingresa un código válido para ver tu estado.', 'error'); return;
+                    showMessage(messagePlaceholder, 'Ingresa un código válido para ver tu estado.', 'error'); return;
                 }
-                showLoading(terminalLoadingIndicator);
+                showButtonLoading(checkStatusCodeButton, 'Consultando...');
                 studentStatusDiv.classList.add('hidden');
                 try {
                     const studentsRef = collection(db, studentsCollectionPath);
                     const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
                     const studentQuerySnapshot = await getDocs(q);
                     if (studentQuerySnapshot.empty) {
-                        showMessage(terminalSection.querySelector('.message-placeholder'), 'Código no encontrado.', 'error');
-                        hideLoading(terminalLoadingIndicator); return;
+                        showMessage(messagePlaceholder, 'Código no encontrado.', 'error');
+                        hideButtonLoading(checkStatusCodeButton); return;
                     }
                     const student = studentQuerySnapshot.docs[0].data();
                     const status = student.isCheckedIn ? `<span class="font-bold text-tent-green">DENTRO</span>` : `<span class="font-bold text-red-600">FUERA</span>`;
                     studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Actualmente estás ${status}.`;
                     studentStatusDiv.classList.remove('hidden');
-                    showMessage(terminalSection.querySelector('.message-placeholder'), `Estado consultado para ${student.fullName}.`, 'info');
+                    showMessage(messagePlaceholder, `Estado consultado para ${student.fullName}.`, 'info');
                 } catch (error) {
                     console.error("Error al consultar estado: ", error);
-                    showMessage(terminalSection.querySelector('.message-placeholder'), 'Error al consultar estado.', 'error');
-                } finally { hideLoading(terminalLoadingIndicator); }
+                    showMessage(messagePlaceholder, 'Error al consultar estado.', 'error');
+                } finally { hideButtonLoading(checkStatusCodeButton); }
             });
         }
 
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        .message-placeholder { display: block; } /* Asegura que ocupe su espacio */
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-tent-orange selection:text-white">
 
-    <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative"> <!-- Comentario corregido aquí -->
-        <header class="mb-6 text-center">
-            <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
-            <p class="text-gray-600">Sistema de Check-in / Check-out</p>
+    <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative">
+        <header class="mb-6 flex items-center justify-start">
+            <!-- Logo de Tent Cowork -->
+           <div class="flex items-center">
+                <img src="https://i.postimg.cc/2yMS3Kgy/destacada-tent-1.jpg" 
+                    alt="Tent Cowork Logo" 
+                    class="h-24 w-24 rounded-xl object-cover mr-4 shadow-sm"
+                    onerror="this.onerror=null; this.src='https://placehold.co/96x96/cccccc/000000?text=Logo+No+Cargado';">
+                
+                <div class="flex flex-col text-left">
+                    <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
+                    <p class="text-gray-600">Sistema de Check-in / Check-out</p>
+                </div>
+            </div>
+
         </header>
 
         <div class="mb-4 border-b border-gray-300">
             <nav class="flex -mb-px">
-                <button id="showTerminalBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Terminal</button>
+                <button id="showTerminalBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Ingresar</button>
                 <button id="showRegistrationBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Registrarse</button>
             </nav>
         </div>
@@ -364,21 +438,17 @@
             <form id="terminalForm" class="space-y-4">
                 <div>
                     <label for="accessCodeTerminal" class="sr-only">Código de Acceso</label>
-                    <input type="text" id="accessCodeTerminal" name="accessCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" class="w-full p-4 text-3xl text-center bg-gray-100 border-2 border-gray-300 rounded-lg shadow-inner focus:ring-tent-orange focus:border-tent-orange focus:bg-white placeholder-gray-400 transition-colors duration-150" placeholder="•••••" required>
+                    <input type="search" id="accessCodeTerminal" name="accessCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" class="w-full p-4 text-3xl text-center bg-gray-100 border-2 border-gray-300 rounded-lg shadow-inner focus:ring-tent-orange focus:border-tent-orange focus:bg-white placeholder-gray-400 transition-colors duration-150" placeholder="•••••" required>
                 </div>
-                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105">
+                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105 active:scale-95 active:shadow-inner">
                     Registrar Entrada / Salida
                 </button>
-                 <button type="button" id="checkStatusCodeBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105">
+                <button type="button" id="checkStatusCodeBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105 active:scale-95 active:shadow-inner">
                     Consultar mi Estado
                 </button>
             </form>
             <div class="text-center mt-3">
                 <button type="button" id="openForgotCodeModalBtn" class="text-sm text-tent-orange hover:text-opacity-80 hover:underline">¿Olvidaste tu código?</button>
-            </div>
-            <div id="terminalLoadingIndicator" class="hidden text-center mt-4">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-orange"></div>
-                <p class="text-sm text-gray-500">Procesando...</p>
             </div>
             <div id="studentStatusDiv" class="hidden mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md text-center text-gray-700"></div>
         </section>
@@ -403,14 +473,10 @@
                     <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico*</label>
                     <input type="email" id="email" name="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
                 </div>
-                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105">
+                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105 active:scale-95 active:shadow-inner">
                     Registrarme y Obtener Código
                 </button>
             </form>
-            <div id="loadingIndicator" class="hidden text-center mt-4">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-orange"></div>
-                <p class="text-sm text-gray-500">Registrando...</p>
-            </div>
             <div id="codeDisplay" class="hidden mt-4 p-4 bg-yellow-50 border-yellow-200 rounded-md text-center text-yellow-800"></div>
             <div id="mailtoButtonContainer" class="hidden mt-2"></div>
         </section>
@@ -436,12 +502,8 @@
                         <label for="recoveryEmail" class="sr-only">Correo Electrónico de Registro</label>
                         <input type="email" name="recoveryEmail" id="recoveryEmail" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-tent-orange focus:border-tent-orange block w-full p-2.5" placeholder="Ingresa tu email de registro" required>
                     </div>
-                    <button type="submit" class="w-full text-white bg-tent-orange hover:bg-opacity-80 focus:ring-4 focus:outline-none focus:ring-tent-orange font-medium rounded-lg text-sm px-5 py-2.5 text-center">Buscar mi Código</button>
+                    <button type="submit" class="w-full text-white bg-tent-orange hover:bg-opacity-80 focus:ring-4 focus:outline-none focus:ring-tent-orange font-medium rounded-lg text-sm px-5 py-2.5 text-center active:scale-95 active:shadow-inner">Buscar mi Código</button>
                 </form>
-                <div id="forgotCodeLoadingIndicator" class="hidden text-center mt-4">
-                    <div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-tent-orange"></div>
-                    <p class="text-xs text-gray-500">Buscando...</p>
-                </div>
                 <div id="forgotCodeMessageDiv" class="message-placeholder hidden mt-3"></div>
                 <div id="recoveredCodeMailtoContainer" class="hidden mt-3"></div>
             </div>
