@@ -7,12 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script type="module">
-        // Configuración de Firebase (reemplaza con tus datos si aún no lo has hecho)
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        // Configuración de Firebase con tus datos ya insertados
+        const firebaseConfig = {
             apiKey: "AIzaSyC7Onnquc6p2_luPU_f9e9M0ltJ4eCXxp4",
             authDomain: "tentcowork-estudiantes.firebaseapp.com",
             projectId: "tentcowork-estudiantes",
-            storageBucket: "tentcowork-estudiantes.firebasestorage.app",
+            storageBucket: "tentcowork-estudiantes.appspot.com",
             messagingSenderId: "229032189557",
             appId: "1:229032189557:web:acc8a34f6d7ba62020223c",
             measurementId: "G-RSL9JYPJ76"
@@ -27,7 +27,7 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tent-cowork-checkin';
+        const appId = firebaseConfig.appId;
         
         // --- Selectores de Elementos del DOM ---
         const registrationSection = document.getElementById('registrationSection');
@@ -75,18 +75,14 @@
         // --- Lógica de Autenticación y Estado ---
         function setupAuthListener() {
             onAuthStateChanged(auth, (user) => {
-                // Esta función se ejecutará cada vez que el estado de autenticación cambie (login, logout)
                 if (user && user.email) {
-                    // Hay un usuario administrador con email logueado
                     console.log("Admin logueado:", user.email);
-                    adminLoginForm.classList.add('hidden');
-                    adminContent.classList.remove('hidden');
+                    if(adminLoginForm) adminLoginForm.classList.add('hidden');
+                    if(adminContent) adminContent.classList.remove('hidden');
                 } else {
-                    // No hay admin logueado, o es un usuario anónimo
                     console.log("No hay admin logueado o es sesión anónima.");
-                    adminLoginForm.classList.remove('hidden');
-                    adminContent.classList.add('hidden');
-                    // Si no hay ningún usuario (ni siquiera anónimo), iniciamos una sesión anónima
+                    if(adminLoginForm) adminLoginForm.classList.remove('hidden');
+                    if(adminContent) adminContent.classList.add('hidden');
                     if (!auth.currentUser) {
                         signInAnonymously(auth).catch(error => console.error("Error en signInAnonymously:", error));
                     }
@@ -145,12 +141,193 @@
         }
         
         // --- Funciones de Lógica de la Aplicación ---
-        // (handleRegistrationSubmit, handleTerminalSubmit, etc.)
         function generateAccessCode() { return Math.floor(10000 + Math.random() * 90000).toString(); }
-        async function handleRegistrationSubmit(event) { /* ...código sin cambios... */ }
-        async function handleTerminalSubmit(event) { /* ...código sin cambios... */ }
-        async function handleCheckStatus() { /* ...código sin cambios... */ }
-        async function handleForgotCodeSubmit(event) { /* ...código sin cambios... */ }
+
+        async function handleRegistrationSubmit(event) {
+            event.preventDefault();
+            if(loadingIndicator) showLoading(loadingIndicator);
+            if(codeDisplay) codeDisplay.classList.add('hidden');
+            if(mailtoButtonContainer) mailtoButtonContainer.classList.add('hidden');
+            
+            const messagePlaceholder = registrationSection ? registrationSection.querySelector('.message-placeholder') : null;
+            const fullName = registrationForm.fullName.value.trim();
+            const faculty = registrationForm.faculty.value.trim();
+            const phone = registrationForm.phone.value.trim();
+            const email = registrationForm.email.value.toLowerCase().trim();
+
+            if (!fullName || !faculty || !email || !phone) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Por favor, completa todos los campos obligatorios.', 'error');
+                if(loadingIndicator) hideLoading(loadingIndicator); return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Por favor, ingresa un correo electrónico válido.', 'error');
+                if(loadingIndicator) hideLoading(loadingIndicator); return;
+            }
+            if (!/^\+?[\d\s-]{7,15}$/.test(phone)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Por favor, ingresa un número de teléfono válido.', 'error');
+                if(loadingIndicator) hideLoading(loadingIndicator); return;
+            }
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    if(messagePlaceholder) showMessage(messagePlaceholder, 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
+                    if(loadingIndicator) hideLoading(loadingIndicator); return;
+                }
+                const accessCode = generateAccessCode(); 
+                const studentData = { fullName, faculty, phone, email, accessCode, isCheckedIn: false, lastCheckInTimestamp: null, createdAt: serverTimestamp() };
+                await addDoc(studentsRef, studentData);
+                
+                if(registrationForm) registrationForm.reset();
+                if(codeDisplay) {
+                    codeDisplay.innerHTML = `Tu código de acceso es: <strong class="text-2xl text-tent-orange">${accessCode}</strong>. ¡Guárdalo bien!`;
+                    codeDisplay.classList.remove('hidden');
+                }
+                if(mailtoButtonContainer) {
+                    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Tu código de acceso para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nTu código de acceso para Tent Cowork es: ${accessCode}\n\nRecuerda este código para tus próximos ingresos.\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
+                    mailtoButtonContainer.innerHTML = `<a href="${mailtoLink}" class="mt-3 inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme el código a mi email</a>`;
+                    mailtoButtonContainer.classList.remove('hidden');
+                }
+                if(messagePlaceholder) showMessage(messagePlaceholder, `¡Registro exitoso, ${fullName}! Revisa tu código arriba y puedes auto-enviártelo por email.`, 'success');
+            } catch (error) {
+                console.error("Error al registrar estudiante: ", error);
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Error al registrar. Inténtalo de nuevo.', 'error');
+            } finally { if(loadingIndicator) hideLoading(loadingIndicator); }
+        }
+
+        async function handleTerminalSubmit(event) {
+            event.preventDefault();
+            if(terminalLoadingIndicator) showLoading(terminalLoadingIndicator);
+            if(studentStatusDiv) studentStatusDiv.classList.add('hidden');
+            
+            const messagePlaceholder = terminalSection ? terminalSection.querySelector('.message-placeholder') : null;
+            const accessCodeInput = terminalForm.accessCode.value.trim();
+
+            if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Ingresa un código de acceso válido de 5 dígitos.', 'error');
+                if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); return;
+            }
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
+                const studentQuerySnapshot = await getDocs(q);
+                if (studentQuerySnapshot.empty) {
+                    if(messagePlaceholder) showMessage(messagePlaceholder, 'Código de acceso no encontrado.', 'error');
+                    if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); 
+                    if(terminalForm) terminalForm.reset(); 
+                    return;
+                }
+                const studentDoc = studentQuerySnapshot.docs[0];
+                const student = studentDoc.data();
+                const studentId = studentDoc.id;
+                const sessionsRef = collection(db, sessionsCollectionPath);
+
+                if (!student.isCheckedIn) {
+                    await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: true, lastCheckInTimestamp: serverTimestamp() });
+                    await addDoc(sessionsRef, { studentId: studentId, fullName: student.fullName, email: student.email, checkInTimestamp: serverTimestamp(), checkOutTimestamp: null, durationMinutes: null });
+                    if(messagePlaceholder) showMessage(messagePlaceholder, `¡Bienvenido, ${student.fullName}! Check-in realizado.`, 'success');
+                    if(studentStatusDiv) {
+                        studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-tent-green">DENTRO</span>.`;
+                        studentStatusDiv.classList.remove('hidden');
+                    }
+                } else {
+                    await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: false });
+                    const activeSessionQuery = query(sessionsRef, where("studentId", "==", studentId), where("checkOutTimestamp", "==", null));
+                    const activeSessionSnapshot = await getDocs(activeSessionQuery);
+                    if (!activeSessionSnapshot.empty) {
+                        const sessionDocToUpdate = activeSessionSnapshot.docs[0]; 
+                        const sessionData = sessionDocToUpdate.data();
+                        const checkInTime = sessionData.checkInTimestamp.toDate();
+                        const checkOutTime = new Date();
+                        const durationMs = checkOutTime - checkInTime;
+                        const durationMinutes = Math.max(0, Math.round(durationMs / 60000));
+                        await updateDoc(doc(db, sessionsCollectionPath, sessionDocToUpdate.id), { checkOutTimestamp: serverTimestamp(), durationMinutes: durationMinutes });
+                        if(messagePlaceholder) showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. Duración: ${durationMinutes} min.`, 'success');
+                    } else {
+                        if(messagePlaceholder) showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. (No se encontró sesión activa para calcular duración).`, 'info');
+                    }
+                    if(studentStatusDiv){
+                        studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-red-600">FUERA</span>.`;
+                        studentStatusDiv.classList.remove('hidden');
+                    }
+                }
+                if(terminalForm) terminalForm.reset();
+            } catch (error) {
+                console.error("Error en el terminal: ", error);
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Error en la operación. Inténtalo de nuevo.', 'error');
+            } finally { if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); }
+        }
+
+        async function handleCheckStatus() {
+            const messagePlaceholder = terminalSection ? terminalSection.querySelector('.message-placeholder') : null;
+            const accessCodeInput = terminalForm.accessCode.value.trim();
+            if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Ingresa un código válido para ver tu estado.', 'error'); return;
+            }
+            if(terminalLoadingIndicator) showLoading(terminalLoadingIndicator);
+            if(studentStatusDiv) studentStatusDiv.classList.add('hidden');
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
+                const studentQuerySnapshot = await getDocs(q);
+                if (studentQuerySnapshot.empty) {
+                    if(messagePlaceholder) showMessage(messagePlaceholder, 'Código no encontrado.', 'error');
+                    if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); return;
+                }
+                const student = studentQuerySnapshot.docs[0].data();
+                const status = student.isCheckedIn ? `<span class="font-bold text-tent-green">DENTRO</span>` : `<span class="font-bold text-red-600">FUERA</span>`;
+                if(studentStatusDiv){
+                    studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Actualmente estás ${status}.`;
+                    studentStatusDiv.classList.remove('hidden');
+                }
+                if(messagePlaceholder) showMessage(messagePlaceholder, `Estado consultado para ${student.fullName}.`, 'info');
+            } catch (error) {
+                console.error("Error al consultar estado: ", error);
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Error al consultar estado.', 'error');
+            } finally { if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); }
+        }
+
+        async function handleForgotCodeSubmit(event) {
+            event.preventDefault();
+            if(forgotCodeLoadingIndicator) showLoading(forgotCodeLoadingIndicator);
+            if(forgotCodeMessageDiv) forgotCodeMessageDiv.classList.add('hidden');
+            if(recoveredCodeMailtoContainer) recoveredCodeMailtoContainer.classList.add('hidden');
+
+            const email = forgotCodeForm.recoveryEmail.value.toLowerCase().trim();
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Por favor, ingresa un correo electrónico válido.', 'error');
+                if(forgotCodeLoadingIndicator) hideLoading(forgotCodeLoadingIndicator);
+                return;
+            }
+
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Correo electrónico no encontrado en nuestros registros.', 'error');
+                } else {
+                    const studentData = querySnapshot.docs[0].data();
+                    const accessCode = studentData.accessCode;
+                    const fullName = studentData.fullName;
+
+                    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Recordatorio de tu código para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nHas solicitado un recordatorio de tu código de acceso para Tent Cowork.\n\nTu código es: ${accessCode}\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
+                    if(recoveredCodeMailtoContainer){
+                        recoveredCodeMailtoContainer.innerHTML = `<p class="text-sm text-gray-600 mb-2">Encontramos tu código. Haz clic abajo para enviártelo a tu email:</p><a href="${mailtoLink}" class="mt-3 inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme mi código: ${accessCode}</a>`;
+                        recoveredCodeMailtoContainer.classList.remove('hidden');
+                    }
+                    if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, `¡Hola ${fullName}! Hemos encontrado tu código.`, 'success');
+                }
+            } catch (error) {
+                console.error("Error al recuperar código: ", error);
+                if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Error al intentar recuperar el código. Inténtalo de nuevo.', 'error');
+            } finally {
+                if(forgotCodeLoadingIndicator) hideLoading(forgotCodeLoadingIndicator);
+            }
+        }
+        
         async function handleAdminLogin(event) {
             event.preventDefault();
             showLoading(adminLoadingIndicator);
@@ -158,7 +335,6 @@
             const password = adminLoginForm.adminPassword.value;
             
             try {
-                // Al iniciar sesión, onAuthStateChanged se activará y mostrará el panel correcto
                 await signInWithEmailAndPassword(auth, email, password);
                 showMessage(adminMessageDiv, 'Inicio de sesión exitoso.', 'success');
             } catch (error) {
@@ -176,7 +352,6 @@
         async function handleAdminLogout() {
             try {
                 await signOut(auth);
-                // onAuthStateChanged se activará y mostrará el formulario de login de nuevo
                 showMessage(adminMessageDiv, 'Has cerrado sesión.', 'info');
             } catch (error) {
                 console.error("Error al cerrar sesión de admin:", error);
@@ -230,10 +405,39 @@
         
         // --- Inicialización y Event Listeners ---
         document.addEventListener('DOMContentLoaded', () => {
-            setupAuthListener(); // Configurar el listener de autenticación UNA SOLA VEZ
+            setupAuthListener(); 
             handleInitialNavigation(); 
+
+            // Listeners de usuario
+            if (showRegistrationBtn) showRegistrationBtn.addEventListener('click', () => navigateTo('registration'));
+            if (showTerminalBtn) showTerminalBtn.addEventListener('click', () => navigateTo('terminal'));
+            if (registrationForm) registrationForm.addEventListener('submit', handleRegistrationSubmit);
+            if (terminalForm) terminalForm.addEventListener('submit', handleTerminalSubmit);
+            if (forgotCodeForm) forgotCodeForm.addEventListener('submit', handleForgotCodeSubmit);
             
-            // ... (el resto de los listeners) ...
+            const checkStatusCodeBtn = document.getElementById('checkStatusCodeBtn');
+            if (checkStatusCodeBtn) checkStatusCodeBtn.addEventListener('click', handleCheckStatus);
+
+            if (openForgotCodeModalBtn) openForgotCodeModalBtn.addEventListener('click', () => { if(forgotCodeModal) forgotCodeModal.classList.remove('hidden'); });
+            if (closeForgotCodeModalBtn) closeForgotCodeModalBtn.addEventListener('click', () => {
+                if(forgotCodeModal) forgotCodeModal.classList.add('hidden');
+                if(forgotCodeForm) forgotCodeForm.reset();
+                if(forgotCodeMessageDiv) forgotCodeMessageDiv.classList.add('hidden');
+                if(recoveredCodeMailtoContainer) recoveredCodeMailtoContainer.classList.add('hidden');
+            });
+            if (forgotCodeModal) {
+                forgotCodeModal.addEventListener('click', (event) => { if (event.target === forgotCodeModal) { if(closeForgotCodeModalBtn) closeForgotCodeModalBtn.click(); } });
+            }
+            
+            // Listeners de Admin
+            if (adminLoginForm) adminLoginForm.addEventListener('submit', handleAdminLogin);
+            if (closeOpenSessionsBtn) closeOpenSessionsBtn.addEventListener('click', handleCloseOpenSessions);
+            if (adminLogoutBtn) adminLogoutBtn.addEventListener('click', handleAdminLogout);
+            
+            const currentYearSpan = document.getElementById('currentYear');
+            if (currentYearSpan) {
+                currentYearSpan.textContent = new Date().getFullYear();
+            }
         });
 
     </script>
@@ -244,12 +448,13 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-tent-orange selection:text-white">
-    <!-- El resto del HTML (el <body> completo) no cambia. Se incluye por completitud -->
-    <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative">
+
+    <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative"> 
         <header class="mb-6 text-center">
             <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
             <p class="text-gray-600">Sistema de Check-in / Check-out</p>
         </header>
+
         <div class="mb-4 border-b border-gray-300">
             <nav class="flex -mb-px">
                 <button id="showTerminalBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Terminal</button>
@@ -257,11 +462,66 @@
             </nav>
         </div>
         
-        <!-- Secciones de la App -->
-        <section id="terminalSection" class="hidden pt-4"> <!-- ... Contenido de la sección terminal ... --> </section>
-        <section id="registrationSection" class="hidden pt-4"> <!-- ... Contenido de la sección de registro ... --> </section>
+        <!-- Sección de Terminal -->
+        <section id="terminalSection" class="hidden pt-4">
+            <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Ingresa tu Código</h2>
+            <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden"></div> 
+            <form id="terminalForm" class="space-y-4">
+                <div>
+                    <label for="accessCodeTerminal" class="sr-only">Código de Acceso</label>
+                    <input type="text" id="accessCodeTerminal" name="accessCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" class="w-full p-4 text-3xl text-center bg-gray-100 border-2 border-gray-300 rounded-lg shadow-inner focus:ring-tent-orange focus:border-tent-orange focus:bg-white placeholder-gray-400 transition-colors duration-150" placeholder="•••••" required>
+                </div>
+                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105">
+                    Registrar Entrada / Salida
+                </button>
+                 <button type="button" id="checkStatusCodeBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105">
+                    Consultar mi Estado
+                </button>
+            </form>
+            <div class="text-center mt-3">
+                <button type="button" id="openForgotCodeModalBtn" class="text-sm text-tent-orange hover:text-opacity-80 hover:underline">¿Olvidaste tu código?</button>
+            </div>
+            <div id="terminalLoadingIndicator" class="text-center mt-4 hidden">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-orange"></div>
+                <p class="text-sm text-gray-500">Procesando...</p>
+            </div>
+            <div id="studentStatusDiv" class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md text-center text-gray-700 hidden"></div>
+        </section>
+
+        <!-- Sección de Registro -->
+        <section id="registrationSection" class="hidden pt-4">
+            <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Registro de Estudiante</h2>
+            <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden"></div> 
+            <form id="registrationForm" class="space-y-3">
+                <div>
+                    <label for="fullName" class="block text-sm font-medium text-gray-700">Nombre Completo*</label>
+                    <input type="text" id="fullName" name="fullName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
+                </div>
+                <div>
+                    <label for="faculty" class="block text-sm font-medium text-gray-700">Facultad*</label>
+                    <input type="text" id="faculty" name="faculty" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
+                </div>
+                <div>
+                    <label for="phone" class="block text-sm font-medium text-gray-700">Número de Teléfono*</label>
+                    <input type="tel" id="phone" name="phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
+                </div>
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico*</label>
+                    <input type="email" id="email" name="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
+                </div>
+                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105">
+                    Registrarme y Obtener Código
+                </button>
+            </form>
+            <div id="loadingIndicator" class="text-center mt-4 hidden">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-orange"></div>
+                <p class="text-sm text-gray-500">Registrando...</p>
+            </div>
+            <div id="codeDisplay" class="mt-4 p-4 bg-yellow-50 border-yellow-200 rounded-md text-center text-yellow-800 hidden"></div>
+            <div id="mailtoButtonContainer" class="hidden mt-2"></div>
+        </section>
         
-        <!-- Sección de Administrador ACTUALIZADA -->
+        <!-- Sección de Administrador -->
         <section id="adminSection" class="hidden pt-4">
             <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Panel de Administración</h2>
             <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden" id="adminMessageDiv"></div> 
@@ -285,7 +545,7 @@
             <div id="adminContent" class="hidden space-y-4">
                 <div class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded-md" role="alert">
                   <p class="font-bold">Acción Crítica</p>
-                  <p>Esta acción cerrará todas las sesiones que actualmente estén abiertas.</p>
+                  <p>Esta acción cerrará todas las sesiones que actualmente estén abiertas. La hora de cierre se establecerá a las 21:30 del día en que cada sesión fue iniciada.</p>
                 </div>
                 <div class="flex items-center">
                     <input id="confirmCloseCheckbox" type="checkbox" class="h-4 w-4 text-tent-orange focus:ring-tent-orange border-gray-300 rounded">
@@ -314,7 +574,31 @@
     </div>
     
     <!-- Modal Olvidé mi Código -->
-    <div id="forgotCodeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 hidden"> <!-- ... Contenido del modal ... --> </div>
-
+    <div id="forgotCodeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 hidden">
+        <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">Recuperar Código de Acceso</h3>
+                    <button id="closeForgotCodeModalBtn" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                </div>
+                <form id="forgotCodeForm" class="space-y-4">
+                    <div>
+                        <label for="recoveryEmail" class="sr-only">Correo Electrónico de Registro</label>
+                        <input type="email" name="recoveryEmail" id="recoveryEmail" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm bg-gray-50" placeholder="Ingresa tu email de registro" required>
+                    </div>
+                    <button type="submit" class="w-full text-white bg-tent-orange hover:bg-opacity-80 focus:ring-4 focus:outline-none focus:ring-tent-orange font-medium rounded-lg text-sm px-5 py-2.5 text-center">Buscar mi Código</button>
+                </form>
+                <div id="forgotCodeLoadingIndicator" class="text-center mt-4 hidden">
+                    <div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-tent-orange"></div>
+                    <p class="text-xs text-gray-500">Buscando...</p>
+                </div>
+                <div id="forgotCodeMessageDiv" class="message-placeholder p-3 rounded-md text-sm mt-3 hidden"></div>
+                <div id="recoveredCodeMailtoContainer" class="hidden mt-3"></div>
+            </div>
+        </div>
+    </div>
+    
 </body>
 </html>
