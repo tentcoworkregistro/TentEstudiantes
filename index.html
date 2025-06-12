@@ -1,29 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-       <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-RSL9JYPJ76"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-RSL9JYPJ76');
-    </script>
-       
-       <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
-       <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-       <link rel="shortcut icon" href="/favicon.ico" />
-       <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-       <meta name="apple-mobile-web-app-title" content="TentCheck" />
-       <link rel="manifest" href="/site.webmanifest" />
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tent Cowork - Check-in/Checkout</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script type="module">
-        // Configuración de Firebase (reemplaza con tus datos)
+        // Configuración de Firebase (reemplaza con tus datos si aún no lo has hecho)
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyC7Onnquc6p2_luPU_f9e9M0ltJ4eCXxp4",
             authDomain: "tentcowork-estudiantes.firebaseapp.com",
@@ -34,9 +18,10 @@
             measurementId: "G-RSL9JYPJ76"
         };
 
+        // Importaciones de Firebase (se añade 'Timestamp' para la nueva función)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, serverTimestamp, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, doc, updateDoc, serverTimestamp, getDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -45,31 +30,48 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tent-cowork-checkin';
         let userId = null;
 
+        // --- Selectores de Elementos del DOM ---
+        // Secciones principales
         const registrationSection = document.getElementById('registrationSection');
         const terminalSection = document.getElementById('terminalSection');
+        const adminSection = document.getElementById('adminSection');
         const forgotCodeModal = document.getElementById('forgotCodeModal');
         
+        // Formularios
         const registrationForm = document.getElementById('registrationForm');
         const terminalForm = document.getElementById('terminalForm');
         const forgotCodeForm = document.getElementById('forgotCodeForm');
+        const adminLoginForm = document.getElementById('adminLoginForm');
 
+        // Elementos de UI
         const codeDisplay = document.getElementById('codeDisplay');
         const mailtoButtonContainer = document.getElementById('mailtoButtonContainer');
         const studentStatusDiv = document.getElementById('studentStatusDiv');
-        
-        const forgotCodeMessageDiv = document.getElementById('forgotCodeMessageDiv');
-        const recoveredCodeMailtoContainer = document.getElementById('recoveredCodeMailtoContainer');
-        // Nuevo contenedor para el botón de "Olvidé mi código" en la sección de registro
-        const sendCodeIfRegisteredContainer = document.getElementById('sendCodeIfRegisteredContainer');
+        const adminContent = document.getElementById('adminContent');
+        const closeOpenSessionsBtn = document.getElementById('closeOpenSessionsBtn');
 
+        // Indicadores de Carga
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const terminalLoadingIndicator = document.getElementById('terminalLoadingIndicator');
+        const forgotCodeLoadingIndicator = document.getElementById('forgotCodeLoadingIndicator');
+        const adminLoadingIndicator = document.getElementById('adminLoadingIndicator');
+        
+        // Contenedores de Mensajes
+        const forgotCodeMessageDiv = document.getElementById('forgotCodeMessageDiv');
+        const adminMessageDiv = document.getElementById('adminMessageDiv');
+        const recoveredCodeMailtoContainer = document.getElementById('recoveredCodeMailtoContainer');
+
+        // Botones de Navegación y Modal
         const showRegistrationBtn = document.getElementById('showRegistrationBtn');
         const showTerminalBtn = document.getElementById('showTerminalBtn');
         const openForgotCodeModalBtn = document.getElementById('openForgotCodeModalBtn');
         const closeForgotCodeModalBtn = document.getElementById('closeForgotCodeModalBtn');
         
+        // --- Rutas de Colecciones de Firestore ---
         const studentsCollectionPath = `/artifacts/${appId}/public/data/students`;
         const sessionsCollectionPath = `/artifacts/${appId}/public/data/sessions`;
 
+        // Configuración de Tailwind para colores personalizados
         tailwind.config = {
             theme: {
                 extend: {
@@ -81,44 +83,7 @@
             }
         }
 
-        // Referencias a los botones para manejar el estado de carga
-        const registerButton = registrationForm.querySelector('button[type="submit"]');
-        const terminalSubmitButton = terminalForm.querySelector('button[type="submit"]');
-        const checkStatusCodeButton = document.getElementById('checkStatusCodeBtn');
-        const forgotCodeSubmitButton = forgotCodeForm.querySelector('button[type="submit"]');
-
-        let originalRegisterButtonText = registerButton.textContent;
-        let originalTerminalSubmitButtonText = terminalSubmitButton.textContent;
-        let originalCheckStatusCodeButtonText = checkStatusCodeButton.textContent;
-        let originalForgotCodeSubmitButtonText = forgotCodeSubmitButton.textContent;
-
-        // Función para mostrar estado de carga en un botón
-        function showButtonLoading(button, loadingText) {
-            if (button) {
-                if (button === registerButton) originalRegisterButtonText = button.textContent;
-                if (button === terminalSubmitButton) originalTerminalSubmitButtonText = button.textContent;
-                if (button === checkStatusCodeButton) originalCheckStatusCodeButtonText = button.textContent;
-                if (button === forgotCodeSubmitButton) originalForgotCodeSubmitButtonText = button.textContent;
-
-                button.textContent = loadingText;
-                button.disabled = true;
-                button.classList.add('opacity-75', 'cursor-not-allowed');
-            }
-        }
-
-        // Función para ocultar estado de carga en un botón
-        function hideButtonLoading(button) {
-            if (button) {
-                if (button === registerButton) button.textContent = originalRegisterButtonText;
-                if (button === terminalSubmitButton) button.textContent = originalTerminalSubmitButtonText;
-                if (button === checkStatusCodeButton) button.textContent = originalCheckStatusCodeButtonText;
-                if (button === forgotCodeSubmitButton) button.textContent = originalForgotCodeSubmitButtonText;
-                
-                button.disabled = false;
-                button.classList.remove('opacity-75', 'cursor-not-allowed');
-            }
-        }
-
+        // --- Lógica de Autenticación ---
         async function initializeAuth() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -128,364 +93,421 @@
                 }
             } catch (error) {
                 console.error("Error en la autenticación:", error);
-                const activeSection = !registrationSection.classList.contains('hidden') ? registrationSection : terminalSection;
-                showMessage(activeSection.querySelector('.message-placeholder'), "Error de autenticación. La app podría no funcionar correctamente.", "error");
+                const activeSection = registrationSection && !registrationSection.classList.contains('hidden') ? registrationSection : (terminalSection && !terminalSection.classList.contains('hidden') ? terminalSection : adminSection);
+                const messagePlaceholder = activeSection ? activeSection.querySelector('.message-placeholder') : null;
+                if (messagePlaceholder) {
+                    showMessage(messagePlaceholder, "Error de autenticación. La app podría no funcionar correctamente.", "error");
+                }
             }
             onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    console.log("Usuario autenticado (UID):", userId);
-                } else {
-                    userId = crypto.randomUUID(); 
-                    console.log("Usuario no autenticado o anónimo, usando UUID temporal:", userId);
-                }
+                if (user) { userId = user.uid; console.log("Usuario autenticado (UID):", userId); } 
+                else { userId = crypto.randomUUID(); console.log("Usuario no autenticado, usando UUID temporal:", userId); }
             });
         }
         
-        initializeAuth();
+        // --- Funciones de Utilidad UI ---
+        function showLoading(indicator) { if (indicator) indicator.classList.remove('hidden'); }
+        function hideLoading(indicator) { if (indicator) indicator.classList.add('hidden'); }
 
         function showMessage(targetMessageContainer, message, type = 'success') {
-            if (!targetMessageContainer) {
-                console.warn("Contenedor de mensaje no encontrado. Mensaje no mostrado:", message);
-                return; 
-            }
-            let bgColor = 'bg-blue-100', textColor = 'text-blue-700';
-            if (type === 'success') { bgColor = 'bg-green-100'; textColor = 'text-tent-green'; }
-            else if (type === 'error') { bgColor = 'bg-red-100'; textColor = 'text-red-700'; }
-            else if (type === 'info') { bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; }
-
+            if (!targetMessageContainer) return;
+            targetMessageContainer.classList.remove('hidden', 'bg-green-100', 'text-tent-green', 'bg-red-100', 'text-red-700', 'bg-yellow-100', 'text-yellow-800');
+            if (type === 'success') { targetMessageContainer.classList.add('bg-green-100', 'text-tent-green'); }
+            else if (type === 'error') { targetMessageContainer.classList.add('bg-red-100', 'text-red-700'); }
+            else { targetMessageContainer.classList.add('bg-yellow-100', 'text-yellow-800'); }
             targetMessageContainer.textContent = message;
-            targetMessageContainer.className = `message-placeholder p-3 rounded-md text-sm mb-4 ${bgColor} ${textColor}`;
-            targetMessageContainer.classList.remove('hidden');
             setTimeout(() => { targetMessageContainer.classList.add('hidden'); }, 7000); 
         }
 
-        function generateAccessCode() { return Math.floor(10000 + Math.random() * 90000).toString(); }
-
+        // --- Lógica de Navegación (ACTUALIZADA) ---
         const tabButtonInactiveClasses = ['bg-gray-100', 'text-gray-500', 'hover:bg-gray-200', 'hover:text-gray-700', 'border-transparent'];
         const tabButtonActiveClasses = ['bg-tent-green', 'text-white', 'shadow-md', 'border-tent-orange'];
 
         function styleTabButton(button, isActive) {
+            if (!button) return;
             button.classList.remove(...tabButtonActiveClasses, ...tabButtonInactiveClasses); 
             if (isActive) { button.classList.add(...tabButtonActiveClasses); }
             else { button.classList.add(...tabButtonInactiveClasses); }
         }
 
         function navigateTo(sectionName) {
-            registrationSection.classList.add('hidden');
-            terminalSection.classList.add('hidden');
+            if(registrationSection) registrationSection.classList.add('hidden');
+            if(terminalSection) terminalSection.classList.add('hidden');
+            if(adminSection) adminSection.classList.add('hidden');
+
+            styleTabButton(showRegistrationBtn, false); 
+            styleTabButton(showTerminalBtn, false);
+
             if (sectionName === 'registration') {
-                registrationSection.classList.remove('hidden');
-                styleTabButton(showRegistrationBtn, true); styleTabButton(showTerminalBtn, false);
-            } else if (sectionName === 'terminal') {
-                terminalSection.classList.remove('hidden');
-                styleTabButton(showTerminalBtn, true); styleTabButton(showRegistrationBtn, false);
+                if(registrationSection) registrationSection.classList.remove('hidden');
+                styleTabButton(showRegistrationBtn, true); 
+            } else if (sectionName === 'admin') {
+                if(adminSection) adminSection.classList.remove('hidden');
+            } else { 
+                if(terminalSection) terminalSection.classList.remove('hidden');
+                styleTabButton(showTerminalBtn, true); 
             }
         }
         
         function handleInitialNavigation() {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
-            const modoRegistro = params.get('modo'); // Nuevo parámetro para el modo de registro
+            navigateTo(view === 'register' ? 'registration' : (view === 'admin' ? 'admin' : 'terminal'));
+        }
 
-            if (modoRegistro === 'registro') {
-                // Si el modo es 'registro', ocultar la pestaña de "Ingresar" y forzar la de "Registrarse"
-                if (showTerminalBtn) {
-                    showTerminalBtn.classList.add('hidden'); // Oculta el botón de la pestaña "Ingresar"
-                }
-                terminalSection.classList.add('hidden'); // Asegura que la sección de terminal esté oculta
-                registrationSection.classList.remove('hidden'); // Muestra siempre la sección de registro
-                styleTabButton(showRegistrationBtn, true); // Activa la pestaña de registro
-                styleTabButton(showTerminalBtn, false); // Desactiva la pestaña de ingresar (aunque esté oculta)
-            } else {
-                // Lógica de navegación original si no está en modo 'registro'
-                navigateTo(view === 'register' ? 'registration' : 'terminal');
+        // --- Funciones de Lógica de la Aplicación ---
+        function generateAccessCode() { return Math.floor(10000 + Math.random() * 90000).toString(); }
+
+        async function handleRegistrationSubmit(event) {
+            event.preventDefault();
+            if(loadingIndicator) showLoading(loadingIndicator);
+            if(codeDisplay) codeDisplay.classList.add('hidden');
+            if(mailtoButtonContainer) mailtoButtonContainer.classList.add('hidden');
+            
+            const messagePlaceholder = registrationSection ? registrationSection.querySelector('.message-placeholder') : null;
+            const fullName = registrationForm.fullName.value.trim();
+            const faculty = registrationForm.faculty.value.trim();
+            const phone = registrationForm.phone.value.trim();
+            const email = registrationForm.email.value.toLowerCase().trim();
+
+            if (!fullName || !faculty || !email || !phone) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Por favor, completa todos los campos obligatorios.', 'error');
+                if(loadingIndicator) hideLoading(loadingIndicator); return;
             }
-        }
-
-        window.addEventListener('DOMContentLoaded', handleInitialNavigation);
-        if (showRegistrationBtn) showRegistrationBtn.addEventListener('click', () => navigateTo('registration'));
-        if (showTerminalBtn) showTerminalBtn.addEventListener('click', () => navigateTo('terminal'));
-
-        // Modal "Olvidé mi código"
-        if (openForgotCodeModalBtn) openForgotCodeModalBtn.addEventListener('click', () => forgotCodeModal.classList.remove('hidden'));
-        if (closeForgotCodeModalBtn) closeForgotCodeModalBtn.addEventListener('click', () => {
-            forgotCodeModal.classList.add('hidden');
-            forgotCodeForm.reset();
-            forgotCodeMessageDiv.classList.add('hidden');
-            recoveredCodeMailtoContainer.classList.add('hidden');
-        });
-        
-        // Clic fuera del modal para cerrarlo
-        if (forgotCodeModal) {
-            forgotCodeModal.addEventListener('click', (event) => {
-                if (event.target === forgotCodeModal) {
-                    closeForgotCodeModalBtn.click();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Por favor, ingresa un correo electrónico válido.', 'error');
+                if(loadingIndicator) hideLoading(loadingIndicator); return;
+            }
+            if (!/^\+?[\d\s-]{7,15}$/.test(phone)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Por favor, ingresa un número de teléfono válido.', 'error');
+                if(loadingIndicator) hideLoading(loadingIndicator); return;
+            }
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    if(messagePlaceholder) showMessage(messagePlaceholder, 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
+                    if(loadingIndicator) hideLoading(loadingIndicator); return;
                 }
-            });
-        }
-
-        if (forgotCodeForm) {
-            forgotCodeForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                showButtonLoading(forgotCodeSubmitButton, 'Buscando...');
-                forgotCodeMessageDiv.classList.add('hidden');
-                recoveredCodeMailtoContainer.classList.add('hidden');
-
-                const email = forgotCodeForm.recoveryEmail.value.toLowerCase().trim();
-                if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                    showMessage(forgotCodeMessageDiv, 'Por favor, ingresa un correo electrónico válido.', 'error');
-                    hideButtonLoading(forgotCodeSubmitButton);
-                    return;
-                }
-
-                try {
-                    const studentsRef = collection(db, studentsCollectionPath);
-                    const q = query(studentsRef, where("email", "==", email));
-                    const querySnapshot = await getDocs(q);
-
-                    if (querySnapshot.empty) {
-                        showMessage(forgotCodeMessageDiv, 'Correo electrónico no encontrado en nuestros registros.', 'error');
-                    } else {
-                        const studentData = querySnapshot.docs[0].data();
-                        const accessCode = studentData.accessCode;
-                        const fullName = studentData.fullName;
-
-                        const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Recordatorio de tu código para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nHas solicitado un recordatorio de tu código de acceso para Tent Cowork.\n\nTu código es: ${accessCode}\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
-                        recoveredCodeMailtoContainer.innerHTML = `<p class="text-sm text-gray-600 mb-2">Encontramos tu código. Haz clic abajo para enviártelo a tu email:</p><a href="${mailtoLink}" class="inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme mi código: ${accessCode}</a>`;
-                        recoveredCodeMailtoContainer.classList.remove('hidden');
-                        showMessage(forgotCodeMessageDiv, `¡Hola ${fullName}! Hemos encontrado tu código.`, 'success');
-                    }
-                } catch (error) {
-                    console.error("Error al recuperar código: ", error);
-                    showMessage(forgotCodeMessageDiv, 'Error al intentar recuperar el código. Inténtalo de nuevo.', 'error');
-                } finally {
-                    hideButtonLoading(forgotCodeSubmitButton);
-                }
-            });
-        }
-
-        if (registrationForm) {
-            registrationForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                showButtonLoading(registerButton, 'Registrando...');
-                codeDisplay.classList.add('hidden');
-                mailtoButtonContainer.classList.add('hidden');
-                sendCodeIfRegisteredContainer.classList.add('hidden'); // Ocultar este contenedor al inicio de cada intento de registro
+                const accessCode = generateAccessCode(); 
+                const studentData = { fullName, faculty, phone, email, accessCode, isCheckedIn: false, lastCheckInTimestamp: null, createdAt: serverTimestamp() };
+                await addDoc(studentsRef, studentData);
                 
-                const fullName = registrationForm.fullName.value.trim();
-                const faculty = registrationForm.faculty.value.trim();
-                const phone = registrationForm.phone.value.trim();
-                const email = registrationForm.email.value.toLowerCase().trim();
-
-                const messagePlaceholder = registrationSection.querySelector('.message-placeholder');
-
-                if (!fullName) {
-                    showMessage(messagePlaceholder, 'Por favor, ingresa tu nombre completo.', 'error');
-                    hideButtonLoading(registerButton); return;
-                }
-                if (!faculty) {
-                    showMessage(messagePlaceholder, 'Por favor, ingresa tu facultad.', 'error');
-                    hideButtonLoading(registerButton); return;
-                }
-                if (!phone) {
-                    showMessage(messagePlaceholder, 'Por favor, ingresa tu número de teléfono.', 'error');
-                    hideButtonLoading(registerButton); return;
-                }
-                if (!email) {
-                    showMessage(messagePlaceholder, 'Por favor, ingresa tu correo electrónico.', 'error');
-                    hideButtonLoading(registerButton); return;
-                }
-
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                    showMessage(messagePlaceholder, 'Por favor, ingresa un correo electrónico válido.', 'error');
-                    hideButtonLoading(registerButton); return;
-                }
-                if (!/^\+?[\d\s-]{7,15}$/.test(phone)) {
-                    showMessage(messagePlaceholder, 'Por favor, ingresa un número de teléfono válido.', 'error');
-                    hideButtonLoading(registerButton); return;
-                }
-
-                try {
-                    const studentsRef = collection(db, studentsCollectionPath);
-                    const q = query(studentsRef, where("email", "==", email));
-                    const querySnapshot = await getDocs(q);
-                    if (!querySnapshot.empty) {
-                        const studentData = querySnapshot.docs[0].data();
-                        const accessCode = studentData.accessCode;
-                        const studentFullName = studentData.fullName; // Usar un nombre diferente para evitar conflicto
-
-                        showMessage(messagePlaceholder, 'Este correo electrónico ya está registrado. Puedes usar tu código actual o recuperarlo.', 'error');
-                        
-                        const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Recordatorio de tu código para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${studentFullName}!\n\nHas solicitado un recordatorio de tu código de acceso para Tent Cowork.\n\nTu código es: ${accessCode}\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
-                        sendCodeIfRegisteredContainer.innerHTML = `<p class="text-sm text-gray-600 mb-2 mt-4">Haz clic abajo para enviarte tu código por email:</p><a href="${mailtoLink}" class="inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme mi código: ${accessCode}</a>`;
-                        sendCodeIfRegisteredContainer.classList.remove('hidden');
-                        
-                        hideButtonLoading(registerButton); 
-                        return;
-                    }
-                    const accessCode = generateAccessCode(); 
-                    const studentData = { fullName, faculty, phone, email, accessCode, isCheckedIn: false, lastCheckInTimestamp: null, createdAt: serverTimestamp() };
-                    await addDoc(studentsRef, studentData);
-                    registrationForm.reset();
+                if(registrationForm) registrationForm.reset();
+                if(codeDisplay) {
                     codeDisplay.innerHTML = `Tu código de acceso es: <strong class="text-2xl text-tent-orange">${accessCode}</strong>. ¡Guárdalo bien!`;
                     codeDisplay.classList.remove('hidden');
+                }
+                if(mailtoButtonContainer) {
                     const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Tu código de acceso para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nTu código de acceso para Tent Cowork es: ${accessCode}\n\nRecuerda este código para tus próximos ingresos.\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
                     mailtoButtonContainer.innerHTML = `<a href="${mailtoLink}" class="mt-3 inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme el código a mi email</a>`;
                     mailtoButtonContainer.classList.remove('hidden');
-                    showMessage(messagePlaceholder, `¡Registro exitoso, ${fullName}! Guarda el código de acceso de abajo y auto-enviátelo por email para no perderlo.`, 'success');
-                } catch (error) {
-                    console.error("Error al registrar estudiante: ", error);
-                    showMessage(messagePlaceholder, 'Error al registrar. Inténtalo de nuevo.', 'error');
-                } finally { hideButtonLoading(registerButton); }
-            });
+                }
+                if(messagePlaceholder) showMessage(messagePlaceholder, `¡Registro exitoso, ${fullName}! Revisa tu código arriba y puedes auto-enviártelo por email.`, 'success');
+            } catch (error) {
+                console.error("Error al registrar estudiante: ", error);
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Error al registrar. Inténtalo de nuevo.', 'error');
+            } finally { if(loadingIndicator) hideLoading(loadingIndicator); }
         }
 
-        if (terminalForm) {
-            terminalForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                showButtonLoading(terminalSubmitButton, 'Procesando...');
-                studentStatusDiv.classList.add('hidden');
-                const accessCodeInput = terminalForm.accessCode.value.trim();
-                const messagePlaceholder = terminalSection.querySelector('.message-placeholder');
+        async function handleTerminalSubmit(event) {
+            event.preventDefault();
+            if(terminalLoadingIndicator) showLoading(terminalLoadingIndicator);
+            if(studentStatusDiv) studentStatusDiv.classList.add('hidden');
+            
+            const messagePlaceholder = terminalSection ? terminalSection.querySelector('.message-placeholder') : null;
+            const accessCodeInput = terminalForm.accessCode.value.trim();
 
-                if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
-                    showMessage(messagePlaceholder, 'Ingresa un código de acceso válido de 5 dígitos.', 'error');
-                    hideButtonLoading(terminalSubmitButton); return;
+            if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Ingresa un código de acceso válido de 5 dígitos.', 'error');
+                if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); return;
+            }
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
+                const studentQuerySnapshot = await getDocs(q);
+                if (studentQuerySnapshot.empty) {
+                    if(messagePlaceholder) showMessage(messagePlaceholder, 'Código de acceso no encontrado.', 'error');
+                    if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); 
+                    if(terminalForm) terminalForm.reset(); 
+                    return;
                 }
-                try {
-                    const studentsRef = collection(db, studentsCollectionPath);
-                    const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
-                    const studentQuerySnapshot = await getDocs(q);
-                    if (studentQuerySnapshot.empty) {
-                        showMessage(messagePlaceholder, 'Código de acceso no encontrado.', 'error');
-                        hideButtonLoading(terminalSubmitButton); terminalForm.reset(); return;
-                    }
-                    const studentDoc = studentQuerySnapshot.docs[0];
-                    const student = studentDoc.data();
-                    const studentId = studentDoc.id;
-                    const sessionsRef = collection(db, sessionsCollectionPath);
+                const studentDoc = studentQuerySnapshot.docs[0];
+                const student = studentDoc.data();
+                const studentId = studentDoc.id;
+                const sessionsRef = collection(db, sessionsCollectionPath);
 
-                    if (!student.isCheckedIn) {
-                        await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: true, lastCheckInTimestamp: serverTimestamp() });
-                        await addDoc(sessionsRef, { studentId: studentId, fullName: student.fullName, email: student.email, checkInTimestamp: serverTimestamp(), checkOutTimestamp: null, durationMinutes: null });
-                        showMessage(messagePlaceholder, `¡Bienvenido/a, ${student.fullName}! Check-in realizado.`, 'success');
+                if (!student.isCheckedIn) {
+                    await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: true, lastCheckInTimestamp: serverTimestamp() });
+                    await addDoc(sessionsRef, { studentId: studentId, fullName: student.fullName, email: student.email, checkInTimestamp: serverTimestamp(), checkOutTimestamp: null, durationMinutes: null });
+                    if(messagePlaceholder) showMessage(messagePlaceholder, `¡Bienvenido, ${student.fullName}! Check-in realizado.`, 'success');
+                    if(studentStatusDiv) {
                         studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-tent-green">DENTRO</span>.`;
                         studentStatusDiv.classList.remove('hidden');
+                    }
+                } else {
+                    await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: false });
+                    const activeSessionQuery = query(sessionsRef, where("studentId", "==", studentId), where("checkOutTimestamp", "==", null));
+                    const activeSessionSnapshot = await getDocs(activeSessionQuery);
+                    if (!activeSessionSnapshot.empty) {
+                        const sessionDocToUpdate = activeSessionSnapshot.docs[0]; 
+                        const sessionData = sessionDocToUpdate.data();
+                        const checkInTime = sessionData.checkInTimestamp.toDate();
+                        const checkOutTime = new Date();
+                        const durationMs = checkOutTime - checkInTime;
+                        const durationMinutes = Math.max(0, Math.round(durationMs / (1000 * 60)));
+                        await updateDoc(doc(db, sessionsCollectionPath, sessionDocToUpdate.id), { checkOutTimestamp: serverTimestamp(), durationMinutes: durationMinutes });
+                        if(messagePlaceholder) showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. Duración: ${durationMinutes} min.`, 'success');
                     } else {
-                        await updateDoc(doc(db, studentsCollectionPath, studentId), { isCheckedIn: false });
-                        const activeSessionQuery = query(sessionsRef, where("studentId", "==", studentId), where("checkOutTimestamp", "==", null));
-                        const activeSessionSnapshot = await getDocs(activeSessionQuery);
-                        if (!activeSessionSnapshot.empty) {
-                            const sessionDoc = activeSessionSnapshot.docs[0]; 
-                            const sessionData = sessionDoc.data();
-                            const checkInTime = sessionData.checkInTimestamp.toDate();
-                            const checkOutTime = new Date();
-                            const durationMs = checkOutTime - checkInTime;
-                            const durationMinutes = Math.max(0, Math.round(durationMs / (1000 * 60)));
-                            await updateDoc(doc(db, sessionsCollectionPath, sessionDoc.id), { checkOutTimestamp: serverTimestamp(), durationMinutes: durationMinutes });
-                            showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. Duración: ${durationMinutes} min.`, 'success');
-                        } else {
-                            showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. (No se encontró sesión activa).`, 'info');
-                        }
+                        if(messagePlaceholder) showMessage(messagePlaceholder, `¡Hasta luego, ${student.fullName}! Check-out realizado. (No se encontró sesión activa para calcular duración).`, 'info');
+                    }
+                    if(studentStatusDiv){
                         studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Estás <span class="font-bold text-red-600">FUERA</span>.`;
                         studentStatusDiv.classList.remove('hidden');
                     }
-                    terminalForm.reset();
-                } catch (error) {
-                    console.error("Error en el terminal: ", error);
-                    showMessage(messagePlaceholder, 'Error en la operación. Inténtalo de nuevo.', 'error');
-                } finally { hideButtonLoading(terminalSubmitButton); }
-            });
+                }
+                if(terminalForm) terminalForm.reset();
+            } catch (error) {
+                console.error("Error en el terminal: ", error);
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Error en la operación. Inténtalo de nuevo.', 'error');
+            } finally { if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); }
         }
 
-        const checkStatusCodeBtn = document.getElementById('checkStatusCodeBtn');
-        if (checkStatusCodeBtn) {
-            checkStatusCodeBtn.addEventListener('click', async () => {
-                const accessCodeInput = terminalForm.accessCode.value.trim();
-                const messagePlaceholder = terminalSection.querySelector('.message-placeholder');
-
-                if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
-                    showMessage(messagePlaceholder, 'Ingresa un código válido para ver tu estado.', 'error'); return;
+        async function handleCheckStatus() {
+            const messagePlaceholder = terminalSection ? terminalSection.querySelector('.message-placeholder') : null;
+            const accessCodeInput = terminalForm.accessCode.value.trim();
+            if (accessCodeInput.length !== 5 || !/^\d+$/.test(accessCodeInput)) {
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Ingresa un código válido para ver tu estado.', 'error'); return;
+            }
+            if(terminalLoadingIndicator) showLoading(terminalLoadingIndicator);
+            if(studentStatusDiv) studentStatusDiv.classList.add('hidden');
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
+                const studentQuerySnapshot = await getDocs(q);
+                if (studentQuerySnapshot.empty) {
+                    if(messagePlaceholder) showMessage(messagePlaceholder, 'Código no encontrado.', 'error');
+                    if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); return;
                 }
-                showButtonLoading(checkStatusCodeButton, 'Consultando...');
-                studentStatusDiv.classList.add('hidden');
-                try {
-                    const studentsRef = collection(db, studentsCollectionPath);
-                    const q = query(studentsRef, where("accessCode", "==", accessCodeInput));
-                    const studentQuerySnapshot = await getDocs(q);
-                    if (studentQuerySnapshot.empty) {
-                        showMessage(messagePlaceholder, 'Código no encontrado.', 'error');
-                        hideButtonLoading(checkStatusCodeButton); return;
-                    }
-                    const student = studentQuerySnapshot.docs[0].data();
-                    const status = student.isCheckedIn ? `<span class="font-bold text-tent-green">DENTRO</span>` : `<span class="font-bold text-red-600">FUERA</span>`;
+                const student = studentQuerySnapshot.docs[0].data();
+                const status = student.isCheckedIn ? `<span class="font-bold text-tent-green">DENTRO</span>` : `<span class="font-bold text-red-600">FUERA</span>`;
+                if(studentStatusDiv){
                     studentStatusDiv.innerHTML = `Hola ${student.fullName}.<br>Actualmente estás ${status}.`;
                     studentStatusDiv.classList.remove('hidden');
-                    showMessage(messagePlaceholder, `Estado consultado para ${student.fullName}.`, 'info');
-                } catch (error) {
-                    console.error("Error al consultar estado: ", error);
-                    showMessage(messagePlaceholder, 'Error al consultar estado.', 'error');
-                } finally { hideButtonLoading(checkStatusCodeButton); }
-            });
+                }
+                if(messagePlaceholder) showMessage(messagePlaceholder, `Estado consultado para ${student.fullName}.`, 'info');
+            } catch (error) {
+                console.error("Error al consultar estado: ", error);
+                if(messagePlaceholder) showMessage(messagePlaceholder, 'Error al consultar estado.', 'error');
+            } finally { if(terminalLoadingIndicator) hideLoading(terminalLoadingIndicator); }
         }
+
+        async function handleForgotCodeSubmit(event) {
+            event.preventDefault();
+            if(forgotCodeLoadingIndicator) showLoading(forgotCodeLoadingIndicator);
+            if(forgotCodeMessageDiv) forgotCodeMessageDiv.classList.add('hidden');
+            if(recoveredCodeMailtoContainer) recoveredCodeMailtoContainer.classList.add('hidden');
+
+            const email = forgotCodeForm.recoveryEmail.value.toLowerCase().trim();
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Por favor, ingresa un correo electrónico válido.', 'error');
+                if(forgotCodeLoadingIndicator) hideLoading(forgotCodeLoadingIndicator);
+                return;
+            }
+
+            try {
+                const studentsRef = collection(db, studentsCollectionPath);
+                const q = query(studentsRef, where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Correo electrónico no encontrado en nuestros registros.', 'error');
+                } else {
+                    const studentData = querySnapshot.docs[0].data();
+                    const accessCode = studentData.accessCode;
+                    const fullName = studentData.fullName;
+
+                    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent('Recordatorio de tu código para Tent Cowork')}&body=${encodeURIComponent(`¡Hola ${fullName}!\n\nHas solicitado un recordatorio de tu código de acceso para Tent Cowork.\n\nTu código es: ${accessCode}\n\n¡Te esperamos!\nEl equipo de Tent Cowork`)}`;
+                    if(recoveredCodeMailtoContainer){
+                        recoveredCodeMailtoContainer.innerHTML = `<p class="text-sm text-gray-600 mb-2">Encontramos tu código. Haz clic abajo para enviártelo a tu email:</p><a href="${mailtoLink}" class="mt-3 inline-block w-full text-center bg-tent-green hover:bg-opacity-80 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-150 ease-in-out">Enviarme mi código: ${accessCode}</a>`;
+                        recoveredCodeMailtoContainer.classList.remove('hidden');
+                    }
+                    if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, `¡Hola ${fullName}! Hemos encontrado tu código.`, 'success');
+                }
+            } catch (error) {
+                console.error("Error al recuperar código: ", error);
+                if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Error al intentar recuperar el código. Inténtalo de nuevo.', 'error');
+            } finally {
+                if(forgotCodeLoadingIndicator) hideLoading(forgotCodeLoadingIndicator);
+            }
+        }
+        
+        async function handleAdminLogin(event) {
+            event.preventDefault();
+            const password = adminLoginForm.adminPassword.value;
+            // IMPORTANTE: Cambia esta contraseña por una más segura para tu uso.
+            const CORRECT_PASSWORD = "tentadmin2024";
+
+            if (password === CORRECT_PASSWORD) {
+                adminLoginForm.classList.add('hidden');
+                adminContent.classList.remove('hidden');
+                showMessage(adminMessageDiv, 'Acceso concedido. Ahora puedes cerrar las sesiones.', 'success');
+            } else {
+                showMessage(adminMessageDiv, 'Contraseña incorrecta.', 'error');
+            }
+        }
+        
+        async function handleCloseOpenSessions() {
+            if (!document.getElementById('confirmCloseCheckbox').checked) {
+                showMessage(adminMessageDiv, 'Por favor, marca la casilla para confirmar la operación.', 'error');
+                return;
+            }
+
+            showLoading(adminLoadingIndicator);
+
+            try {
+                const sessionsRef = collection(db, sessionsCollectionPath);
+                const q = query(sessionsRef, where("checkOutTimestamp", "==", null));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    showMessage(adminMessageDiv, 'No se encontraron sesiones abiertas para cerrar.', 'info');
+                    hideLoading(adminLoadingIndicator);
+                    return;
+                }
+
+                const updatePromises = [];
+                const studentUpdateMap = new Map();
+
+                querySnapshot.forEach(sessionDoc => {
+                    const session = sessionDoc.data();
+                    const sessionId = sessionDoc.id;
+                    
+                    const checkInDate = session.checkInTimestamp.toDate();
+                    const closingDate = new Date(checkInDate);
+                    closingDate.setHours(21, 30, 0, 0);
+
+                    const durationMs = closingDate.getTime() - checkInDate.getTime();
+                    const durationMinutes = Math.max(0, Math.round(durationMs / (1000 * 60)));
+
+                    const sessionUpdatePromise = updateDoc(doc(db, sessionsCollectionPath, sessionId), {
+                        checkOutTimestamp: Timestamp.fromDate(closingDate),
+                        durationMinutes: durationMinutes
+                    });
+                    updatePromises.push(sessionUpdatePromise);
+
+                    if (session.studentId) {
+                        studentUpdateMap.set(session.studentId, false); 
+                    }
+                });
+
+                studentUpdateMap.forEach((status, studentId) => {
+                    const studentDocRef = doc(db, studentsCollectionPath, studentId);
+                    const studentUpdatePromise = updateDoc(studentDocRef, { isCheckedIn: status });
+                    updatePromises.push(studentUpdatePromise);
+                });
+
+                await Promise.all(updatePromises);
+                showMessage(adminMessageDiv, `Cierre completado. Se actualizaron ${querySnapshot.size} sesiones.`, 'success');
+
+            } catch (error) {
+                console.error("Error al cerrar sesiones abiertas:", error);
+                showMessage(adminMessageDiv, 'Ocurrió un error durante el cierre de sesiones.', 'error');
+            } finally {
+                hideLoading(adminLoadingIndicator);
+                document.getElementById('confirmCloseCheckbox').checked = false;
+            }
+        }
+
+        // --- Inicialización y Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAuth(); 
+            handleInitialNavigation(); 
+
+            // Listeners de usuario
+            if (showRegistrationBtn) showRegistrationBtn.addEventListener('click', () => navigateTo('registration'));
+            if (showTerminalBtn) showTerminalBtn.addEventListener('click', () => navigateTo('terminal'));
+            if (registrationForm) registrationForm.addEventListener('submit', handleRegistrationSubmit);
+            if (terminalForm) terminalForm.addEventListener('submit', handleTerminalSubmit);
+            if (forgotCodeForm) forgotCodeForm.addEventListener('submit', handleForgotCodeSubmit);
+            
+            const checkStatusCodeBtn = document.getElementById('checkStatusCodeBtn');
+            if (checkStatusCodeBtn) checkStatusCodeBtn.addEventListener('click', handleCheckStatus);
+
+            if (openForgotCodeModalBtn) openForgotCodeModalBtn.addEventListener('click', () => { if(forgotCodeModal) forgotCodeModal.classList.remove('hidden'); });
+            if (closeForgotCodeModalBtn) closeForgotCodeModalBtn.addEventListener('click', () => {
+                if(forgotCodeModal) forgotCodeModal.classList.add('hidden');
+                if(forgotCodeForm) forgotCodeForm.reset();
+                if(forgotCodeMessageDiv) forgotCodeMessageDiv.classList.add('hidden');
+                if(recoveredCodeMailtoContainer) recoveredCodeMailtoContainer.classList.add('hidden');
+            });
+            if (forgotCodeModal) {
+                forgotCodeModal.addEventListener('click', (event) => { if (event.target === forgotCodeModal) { if(closeForgotCodeModalBtn) closeForgotCodeModalBtn.click(); } });
+            }
+            
+            // Listeners de Admin
+            if (adminLoginForm) adminLoginForm.addEventListener('submit', handleAdminLogin);
+            if (closeOpenSessionsBtn) closeOpenSessionsBtn.addEventListener('click', handleCloseOpenSessions);
+            
+            const currentYearSpan = document.getElementById('currentYear');
+            if (currentYearSpan) {
+                currentYearSpan.textContent = new Date().getFullYear();
+            }
+        });
 
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .tab-button-inactive { @apply bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 border-transparent; }
+        .tab-button-active { @apply bg-tent-green text-white shadow-md border-tent-orange; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-tent-orange selection:text-white">
 
-    <div class="w-full max-w-md md:max-w-2xl lg:max-w-3xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-10">
-
-        <header class="mb-6 flex items-center justify-start">
-            <!-- Logo de Tent Cowork -->
-            <div class="flex items-center">
-                <img src="https://i.postimg.cc/2yMS3Kgy/destacada-tent-1.jpg" 
-                     alt="Tent Cowork Logo" 
-                     class="h-24 w-24 rounded-xl object-cover mr-4 shadow-sm"
-                     onerror="this.onerror=null; this.src='https://placehold.co/96x96/cccccc/000000?text=Logo+No+Cargado';">
-                
-                <div class="flex flex-col text-left">
-                    <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
-                    <p class="text-gray-600">Check in/out para estudiantes</p>
-                </div>
-            </div>
-
+    <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative"> 
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-tent-orange">Tent Cowork</h1>
+            <p class="text-gray-600">Sistema de Check-in / Check-out</p>
         </header>
 
         <div class="mb-4 border-b border-gray-300">
             <nav class="flex -mb-px">
-                <button id="showTerminalBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Ingresar</button>
+                <button id="showTerminalBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Terminal</button>
                 <button id="showRegistrationBtn" class="px-6 py-3 font-semibold transition-all duration-150 ease-in-out focus:outline-none rounded-t-md border-b-2">Registrarse</button>
             </nav>
         </div>
         
+        <!-- Sección de Terminal -->
         <section id="terminalSection" class="hidden pt-4">
             <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Ingresa tu Código</h2>
-            <div class="message-placeholder hidden"></div> 
+            <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden"></div> 
             <form id="terminalForm" class="space-y-4">
                 <div>
                     <label for="accessCodeTerminal" class="sr-only">Código de Acceso</label>
-                    <input type="search" id="accessCodeTerminal" name="accessCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" class="w-full p-4 text-3xl text-center bg-gray-100 border-2 border-gray-300 rounded-lg shadow-inner focus:ring-tent-orange focus:border-tent-orange focus:bg-white placeholder-gray-400 transition-colors duration-150" placeholder="•••••" required>
+                    <input type="text" id="accessCodeTerminal" name="accessCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" class="w-full p-4 text-3xl text-center bg-gray-100 border-2 border-gray-300 rounded-lg shadow-inner focus:ring-tent-orange focus:border-tent-orange focus:bg-white placeholder-gray-400 transition-colors duration-150" placeholder="•••••" required>
                 </div>
-                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105 active:scale-95 active:shadow-inner">
+                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105">
                     Registrar Entrada / Salida
                 </button>
-                <button type="button" id="checkStatusCodeBtn" class="hidden w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105 active:scale-95 active:shadow-inner">
+                 <button type="button" id="checkStatusCodeBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 text-sm transform hover:scale-105">
                     Consultar mi Estado
                 </button>
             </form>
             <div class="text-center mt-3">
                 <button type="button" id="openForgotCodeModalBtn" class="text-sm text-tent-orange hover:text-opacity-80 hover:underline">¿Olvidaste tu código?</button>
             </div>
-            <div id="studentStatusDiv" class="hidden mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md text-center text-gray-700"></div>
+            <div id="terminalLoadingIndicator" class="text-center mt-4 hidden">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-orange"></div>
+                <p class="text-sm text-gray-500">Procesando...</p>
+            </div>
+            <div id="studentStatusDiv" class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md text-center text-gray-700 hidden"></div>
         </section>
 
+        <!-- Sección de Registro -->
         <section id="registrationSection" class="hidden pt-4">
             <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Registro de Estudiante</h2>
-            <div class="message-placeholder hidden"></div> 
+            <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden"></div> 
             <form id="registrationForm" class="space-y-3">
                 <div>
                     <label for="fullName" class="block text-sm font-medium text-gray-700">Nombre Completo*</label>
@@ -503,24 +525,62 @@
                     <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico*</label>
                     <input type="email" id="email" name="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
                 </div>
-                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105 active:scale-95 active:shadow-inner">
+                <button type="submit" class="w-full bg-tent-orange hover:bg-opacity-80 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-tent-orange focus:ring-opacity-50 transform hover:scale-105">
                     Registrarme y Obtener Código
                 </button>
             </form>
-            <div id="codeDisplay" class="hidden mt-4 p-4 bg-yellow-50 border-yellow-200 rounded-md text-center text-yellow-800"></div>
+            <div id="loadingIndicator" class="text-center mt-4 hidden">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-orange"></div>
+                <p class="text-sm text-gray-500">Registrando...</p>
+            </div>
+            <div id="codeDisplay" class="mt-4 p-4 bg-yellow-50 border-yellow-200 rounded-md text-center text-yellow-800 hidden"></div>
             <div id="mailtoButtonContainer" class="hidden mt-2"></div>
-            <!-- Nuevo contenedor para el botón de enviar código si el email ya está registrado -->
-            <div id="sendCodeIfRegisteredContainer" class="hidden mt-2"></div>
         </section>
         
+        <!-- NUEVA Sección de Administrador -->
+        <section id="adminSection" class="hidden pt-4">
+            <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Panel de Administración</h2>
+            <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden" id="adminMessageDiv"></div> 
+
+            <form id="adminLoginForm" class="space-y-4 bg-gray-50 p-4 rounded-lg border">
+                <div>
+                    <label for="adminPassword" class="block text-sm font-medium text-gray-700">Contraseña de Administrador</label>
+                    <input type="password" id="adminPassword" name="adminPassword" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm" required>
+                </div>
+                <button type="submit" class="w-full bg-tent-green hover:bg-opacity-80 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all">
+                    Acceder
+                </button>
+            </form>
+
+            <div id="adminContent" class="hidden space-y-4">
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded-md" role="alert">
+                  <p class="font-bold">Acción Crítica</p>
+                  <p>Esta acción cerrará todas las sesiones que actualmente estén abiertas. La hora de cierre se establecerá a las 21:30 del día en que cada sesión fue iniciada.</p>
+                </div>
+                <div class="flex items-center">
+                    <input id="confirmCloseCheckbox" type="checkbox" class="h-4 w-4 text-tent-orange focus:ring-tent-orange border-gray-300 rounded">
+                    <label for="confirmCloseCheckbox" class="ml-2 block text-sm text-gray-900">
+                        Entiendo y quiero cerrar todas las sesiones abiertas.
+                    </label>
+                </div>
+                <button type="button" id="closeOpenSessionsBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all">
+                    Cerrar Sesiones Abiertas
+                </button>
+            </div>
+
+            <div id="adminLoadingIndicator" class="text-center mt-4 hidden">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div>
+                <p class="text-sm text-gray-500">Procesando cierre...</p>
+            </div>
+        </section>
+
         <footer class="mt-8 text-center text-sm text-gray-500">
             <p>&copy; <span id="currentYear"></span> Tent Cowork. Todos los derechos reservados.</p>
-            <script>document.getElementById('currentYear').textContent = new Date().getFullYear();</script>
         </footer>
     </div>
-
+    
     <!-- Modal Olvidé mi Código -->
-    <div id="forgotCodeModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+    <div id="forgotCodeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
             <div class="mt-3 text-center">
                 <div class="flex justify-between items-center mb-4">
@@ -532,15 +592,19 @@
                 <form id="forgotCodeForm" class="space-y-4">
                     <div>
                         <label for="recoveryEmail" class="sr-only">Correo Electrónico de Registro</label>
-                        <input type="email" name="recoveryEmail" id="recoveryEmail" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-tent-orange focus:border-tent-orange block w-full p-2.5" placeholder="Ingresa tu email de registro" required>
+                        <input type="email" name="recoveryEmail" id="recoveryEmail" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-tent-orange focus:border-tent-orange sm:text-sm bg-gray-50" placeholder="Ingresa tu email de registro" required>
                     </div>
-                    <button type="submit" class="w-full text-white bg-tent-orange hover:bg-opacity-80 focus:ring-4 focus:outline-none focus:ring-tent-orange font-medium rounded-lg text-sm px-5 py-2.5 text-center active:scale-95 active:shadow-inner">Buscar mi Código</button>
+                    <button type="submit" class="w-full text-white bg-tent-orange hover:bg-opacity-80 focus:ring-4 focus:outline-none focus:ring-tent-orange font-medium rounded-lg text-sm px-5 py-2.5 text-center">Buscar mi Código</button>
                 </form>
-                <div id="forgotCodeMessageDiv" class="message-placeholder hidden mt-3"></div>
+                <div id="forgotCodeLoadingIndicator" class="text-center mt-4 hidden">
+                    <div class="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-tent-orange"></div>
+                    <p class="text-xs text-gray-500">Buscando...</p>
+                </div>
+                <div id="forgotCodeMessageDiv" class="message-placeholder p-3 rounded-md text-sm mt-3 hidden"></div>
                 <div id="recoveredCodeMailtoContainer" class="hidden mt-3"></div>
             </div>
         </div>
     </div>
-
+    
 </body>
 </html>
