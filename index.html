@@ -431,7 +431,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${sessionData.user.fullName}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${formatTimestampForPanel(sessionData.checkInTimestamp)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${formatTimestampForPanel(sessionData.checkOutTimestamp)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${calculateDurationForPanel(sessionData.checkInTimestamp, sessionData.checkOutTimestamp)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${formatDurationForDisplay(calculateDurationForPanel(sessionData.checkInTimestamp, sessionData.checkOutTimestamp))}</td>
                     </tr>`;
                 sessionsTableBody.innerHTML += row;
             });
@@ -569,8 +569,8 @@
                 let valA, valB;
 
                 if (column === 'checkInTimestamp' || column === 'checkOutTimestamp') {
-                    valA = a[column] ? a[column].toMillis() : 0;
-                    valB = b[column] ? b[column].toMillis() : 0;
+                    valA = a[column] ? a[column].seconds : 0;
+                    valB = b[column] ? b[column].seconds : 0;
                 } else if (column === 'duration') {
                     valA = calculateDurationForPanel(a.checkInTimestamp, a.checkOutTimestamp);
                     valB = calculateDurationForPanel(b.checkInTimestamp, b.checkOutTimestamp);
@@ -581,6 +581,10 @@
                     valA = a[column];
                     valB = b[column];
                 }
+
+                // Handle cases where values might be undefined or null
+                if (valA == null) valA = typeof valA === 'string' ? '' : -Infinity;
+                if (valB == null) valB = typeof valB === 'string' ? '' : -Infinity;
 
                 if (typeof valA === 'string' && typeof valB === 'string') {
                     return direction === 'asc' ? collator.compare(valA, valB) : collator.compare(valB, valA);
