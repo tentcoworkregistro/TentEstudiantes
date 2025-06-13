@@ -64,7 +64,7 @@
         const closeForgotCodeModalBtn = document.getElementById('closeForgotCodeModalBtn');
         const tabNavigation = document.getElementById('tab-navigation');
         
-        // ===== CORRECCIÓN FINAL: Se eliminó el caracter `/` al inicio de las rutas =====
+        // --- Rutas de Colecciones de Firestore ---
         const studentsCollectionPath = `artifacts/${appId}/public/data/students`;
         const sessionsCollectionPath = `artifacts/${appId}/public/data/sessions`;
 
@@ -400,11 +400,43 @@
             }
         }
         
-        // --- ===== NUEVAS FUNCIONES PARA EL PANEL DE DATOS ===== ---
+        // --- ===== FUNCIONES DEL PANEL DE DATOS (MODIFICADAS) ===== ---
 
-        let allUsersData = [];
-        let allSessionsData = [];
+        let allUsers = [];
+        let allSessions = [];
 
+        function renderUsersTable(users) {
+            const usersTableBody = document.getElementById('usersTableBody');
+            if(!usersTableBody) return;
+            usersTableBody.innerHTML = '';
+            users.forEach(userData => {
+                const row = `
+                    <tr class="hover:bg-slate-50 transition-colors duration-150">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${userData.fullName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${userData.faculty || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${userData.email || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${userData.phone || 'N/A'}</td>
+                    </tr>`;
+                usersTableBody.innerHTML += row;
+            });
+        }
+
+        function renderSessionsTable(sessions) {
+            const sessionsTableBody = document.getElementById('sessionsTableBody');
+            if(!sessionsTableBody) return;
+            sessionsTableBody.innerHTML = '';
+            sessions.forEach(sessionData => {
+                 const row = `
+                    <tr class="hover:bg-slate-50 transition-colors duration-150">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${sessionData.user.fullName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${formatTimestampForPanel(sessionData.checkInTimestamp)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${formatTimestampForPanel(sessionData.checkOutTimestamp)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${calculateDurationForPanel(sessionData.checkInTimestamp, sessionData.checkOutTimestamp)}</td>
+                    </tr>`;
+                sessionsTableBody.innerHTML += row;
+            });
+        }
+        
         function formatTimestampForPanel(timestamp) {
             if (!timestamp || typeof timestamp.toDate !== 'function') return 'N/A';
             return timestamp.toDate().toLocaleString('es-AR', {
@@ -416,47 +448,44 @@
         function calculateDurationForPanel(startTime, endTime) {
             if (!startTime || !endTime || typeof startTime.toDate !== 'function' || typeof endTime.toDate !== 'function') return 'En curso';
             const diffMs = endTime.toDate() - startTime.toDate();
-            if (diffMs < 0) return 'Error';
-            const totalSeconds = Math.floor(diffMs / 1000);
-            const hours = Math.floor(totalSeconds / 3600);
+            if (diffMs < 0) return 0; // Return 0 for invalid duration
+            return Math.floor(diffMs / 1000); // Return duration in seconds
+        }
+        
+        function formatDurationForDisplay(totalSeconds) {
+            if (totalSeconds === 'En curso' || isNaN(totalSeconds)) return 'En curso';
+             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             return `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m`;
         }
 
         async function fetchAndRenderUsers() {
-            const usersTableBody = document.getElementById('usersTableBody');
             const usersLoader = document.getElementById('usersLoader');
             const usersTableContainer = document.getElementById('usersTableContainer');
             const usersError = document.getElementById('usersError');
-            if(!usersTableBody) return;
-
+            
             try {
                 const usersCollectionRef = collection(db, studentsCollectionPath);
                 const querySnapshot = await getDocs(usersCollectionRef);
                 const usersMap = new Map();
-                allUsersData = [];
-                usersTableBody.innerHTML = '';
+                allUsers = [];
 
                 querySnapshot.forEach(doc => {
                     const userData = doc.data();
-                    const fullName = userData.fullName || `${userData.name || ''} ${userData.lastName || ''}`.trim();
-                    usersMap.set(doc.id, { ...userData, id: doc.id, fullName });
-
-                    allUsersData.push({
-                        "Nombre y Apellido": fullName,
-                        "Facultad": userData.faculty || 'N/A',
-                        "Gmail": userData.email || 'N/A',
-                        "Número de Teléfono": userData.phone || 'N/A'
-                    });
-
-                    const row = `<tr class="hover:bg-slate-50 transition-colors duration-150"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${fullName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${userData.faculty || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${userData.email || 'N/A'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${userData.phone || 'N/A'}</td></tr>`;
-                    usersTableBody.innerHTML += row;
+                    const enrichedUserData = {
+                        ...userData,
+                        id: doc.id,
+                        fullName: userData.fullName || `${userData.name || ''} ${userData.lastName || ''}`.trim()
+                    };
+                    allUsers.push(enrichedUserData);
+                    usersMap.set(doc.id, enrichedUserData);
                 });
 
                 if (querySnapshot.empty) {
                    if(usersError) { usersError.textContent = "No se encontraron usuarios registrados."; usersError.classList.remove('hidden'); }
                 } else {
                     if(usersTableContainer) usersTableContainer.classList.remove('hidden');
+                    renderUsersTable(allUsers);
                 }
                 return usersMap;
             } catch (error) {
@@ -469,38 +498,29 @@
         }
         
         async function fetchAndRenderSessions(usersMap) {
-            const sessionsTableBody = document.getElementById('sessionsTableBody');
             const sessionsLoader = document.getElementById('sessionsLoader');
             const sessionsTableContainer = document.getElementById('sessionsTableContainer');
             const sessionsError = document.getElementById('sessionsError');
-            if(!sessionsTableBody) return;
-
+            
             try {
                 const sessionsCollectionRef = collection(db, sessionsCollectionPath);
                 const querySnapshot = await getDocs(sessionsCollectionRef);
-                allSessionsData = [];
-                sessionsTableBody.innerHTML = '';
+                allSessions = [];
 
                 querySnapshot.forEach(doc => {
                     const sessionData = doc.data();
-                    const user = usersMap.get(sessionData.studentId) || { fullName: 'Usuario Desconocido' };
-                    
-                    const checkInTime = formatTimestampForPanel(sessionData.checkInTimestamp);
-                    const checkOutTime = formatTimestampForPanel(sessionData.checkOutTimestamp);
-                    const duration = calculateDurationForPanel(sessionData.checkInTimestamp, sessionData.checkOutTimestamp);
-                    
-                    allSessionsData.push({
-                        "Nombre y Apellido": user.fullName, "Entrada": checkInTime, "Salida": checkOutTime, "Tiempo Total": duration
+                    allSessions.push({
+                        ...sessionData,
+                        id: doc.id,
+                        user: usersMap.get(sessionData.studentId) || { fullName: 'Usuario Desconocido' }
                     });
-
-                    const row = `<tr class="hover:bg-slate-50 transition-colors duration-150"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">${user.fullName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${checkInTime}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${checkOutTime}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${duration}</td></tr>`;
-                    sessionsTableBody.innerHTML += row;
                 });
                 
                 if (querySnapshot.empty) {
                    if(sessionsError) { sessionsError.textContent = "No se encontraron sesiones."; sessionsError.classList.remove('hidden'); }
                 } else {
                     if(sessionsTableContainer) sessionsTableContainer.classList.remove('hidden');
+                     renderSessionsTable(allSessions);
                 }
             } catch (error) {
                 console.error("Error fetching sessions:", error);
@@ -511,38 +531,120 @@
         }
         
         function exportToXLSX(data, filename) {
-            if (data.length === 0) {
+             if (data.length === 0) {
                 showMessage(adminMessageDiv, "No hay datos en la tabla para exportar.", "info");
                 return;
             }
-            const worksheet = XLSX.utils.json_to_sheet(data);
+
+            // Create a deep copy for manipulation
+            const dataForExport = JSON.parse(JSON.stringify(data));
+
+            // Format data for export
+            const formattedData = dataForExport.map(item => {
+                if (filename.includes('sesiones')) {
+                    return {
+                        "Nombre y Apellido": item.user?.fullName || 'N/A',
+                        "Entrada": item.checkInTimestamp ? formatTimestampForPanel(new Timestamp(item.checkInTimestamp.seconds, item.checkInTimestamp.nanoseconds)) : 'N/A',
+                        "Salida": item.checkOutTimestamp ? formatTimestampForPanel(new Timestamp(item.checkOutTimestamp.seconds, item.checkOutTimestamp.nanoseconds)) : 'N/A',
+                        "Tiempo Total": formatDurationForDisplay(calculateDurationForPanel(item.checkInTimestamp, item.checkOutTimestamp))
+                    };
+                }
+                return { // For students
+                    "Nombre y Apellido": item.fullName,
+                    "Facultad": item.faculty || 'N/A',
+                    "Gmail": item.email || 'N/A',
+                    "Número de Teléfono": item.phone || 'N/A'
+                };
+            });
+            
+            const worksheet = XLSX.utils.json_to_sheet(formattedData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
             XLSX.writeFile(workbook, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
 
+        function sortData(data, column, direction) {
+            const collator = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+            data.sort((a, b) => {
+                let valA, valB;
+
+                if (column === 'checkInTimestamp' || column === 'checkOutTimestamp') {
+                    valA = a[column] ? a[column].toMillis() : 0;
+                    valB = b[column] ? b[column].toMillis() : 0;
+                } else if (column === 'duration') {
+                    valA = calculateDurationForPanel(a.checkInTimestamp, a.checkOutTimestamp);
+                    valB = calculateDurationForPanel(b.checkInTimestamp, b.checkOutTimestamp);
+                } else if (column === 'fullName' && 'user' in a) { // For sessions table
+                    valA = a.user.fullName;
+                    valB = b.user.fullName;
+                } else {
+                    valA = a[column];
+                    valB = b[column];
+                }
+
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    return direction === 'asc' ? collator.compare(valA, valB) : collator.compare(valB, valA);
+                } else {
+                    return direction === 'asc' ? valA - valB : valB - valA;
+                }
+            });
+        }
+
+
+        function setupTableSorting() {
+            document.querySelectorAll('.sortable-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.dataset.column;
+                    const tableId = header.closest('table').id;
+                    let currentDirection = header.dataset.direction;
+                    
+                    // Reset other headers
+                    header.closest('thead').querySelectorAll('.sortable-header').forEach(h => {
+                        if (h !== header) {
+                            h.dataset.direction = 'none';
+                             h.querySelector('.sort-icon').innerHTML = `<i data-lucide="chevrons-up-down"></i>`;
+                        }
+                    });
+
+                    // Toggle direction
+                    const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+                    header.dataset.direction = newDirection;
+                    header.querySelector('.sort-icon').innerHTML = newDirection === 'asc' ? `<i data-lucide="chevron-up"></i>` : `<i data-lucide="chevron-down"></i>`;
+
+                    if (tableId === 'usersTable') {
+                        sortData(allUsers, column, newDirection);
+                        renderUsersTable(allUsers);
+                    } else if (tableId === 'sessionsTable') {
+                        sortData(allSessions, column, newDirection);
+                        renderSessionsTable(allSessions);
+                    }
+                     if (typeof lucide !== 'undefined') lucide.createIcons();
+                });
+            });
+        }
+
         async function loadAdminDataPanel() {
-            // Esta función se llama cuando el admin inicia sesión
             const dataPanel = document.getElementById('data-panel');
             if (dataPanel && dataPanel.getAttribute('data-loaded') === 'true') {
-                return; // Evita recargar los datos si ya están cargados
+                return;
             }
 
             const usersMap = await fetchAndRenderUsers();
             if (usersMap.size > 0) {
                 await fetchAndRenderSessions(usersMap);
             }
-            if (typeof lucide !== 'undefined') lucide.createIcons(); // Renderiza los íconos de los botones de exportar
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             
+            setupTableSorting(); // Setup sorting after data is loaded
+
             if (dataPanel) dataPanel.setAttribute('data-loaded', 'true');
         }
 
-        // --- Inicialización y Event Listeners (MODIFICADO) ---
+        // --- Inicialización y Event Listeners ---
         document.addEventListener('DOMContentLoaded', () => {
             setupAuthListener(); 
             handleInitialNavigation(); 
 
-            // Listeners de usuario (sin cambios)
             if (showRegistrationBtn) showRegistrationBtn.addEventListener('click', () => navigateTo('registration'));
             if (showTerminalBtn) showTerminalBtn.addEventListener('click', () => navigateTo('terminal'));
             if (registrationForm) registrationForm.addEventListener('submit', handleRegistrationSubmit);
@@ -558,17 +660,15 @@
                 forgotCodeModal.addEventListener('click', (event) => { if (event.target === forgotCodeModal) { if(closeForgotCodeModalBtn) closeForgotCodeModalBtn.click(); } });
             }
             
-            // Listeners de Admin (sin cambios en los existentes)
             if (adminLoginForm) adminLoginForm.addEventListener('submit', handleAdminLogin);
             if (closeOpenSessionsBtn) closeOpenSessionsBtn.addEventListener('click', handleCloseOpenSessions);
             if (adminLogoutBtn) adminLogoutBtn.addEventListener('click', handleAdminLogout);
             
-            // =====> NUEVOS LISTENERS PARA LOS BOTONES DE EXPORTAR <=====
             const exportUsersBtn = document.getElementById('exportUsersBtn');
-            if(exportUsersBtn) exportUsersBtn.addEventListener('click', () => exportToXLSX(allUsersData, 'estudiantes_registrados'));
+            if(exportUsersBtn) exportUsersBtn.addEventListener('click', () => exportToXLSX(allUsers, 'estudiantes_registrados'));
             
             const exportSessionsBtn = document.getElementById('exportSessionsBtn');
-            if(exportSessionsBtn) exportSessionsBtn.addEventListener('click', () => exportToXLSX(allSessionsData, 'sesiones_cowork'));
+            if(exportSessionsBtn) exportSessionsBtn.addEventListener('click', () => exportToXLSX(allSessions, 'sesiones_cowork'));
 
             const currentYearSpan = document.getElementById('currentYear');
             if (currentYearSpan) {
@@ -586,6 +686,9 @@
         .btn-primary { background-color: var(--tent-orange); color: white; font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.5rem; transition: all 0.2s ease-in-out; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 6px -1px rgba(242, 159, 5, 0.3), 0 2px 4px -2px rgba(242, 159, 5, 0.2); }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(242, 159, 5, 0.3), 0 4px 6px -4px rgba(242, 159, 5, 0.2); }
         .table-header { background-color: var(--tent-green); color: #f8fafc; }
+        th.sortable-header { cursor: pointer; }
+        th .sort-icon { color: #9ca3af; }
+        th[data-direction="asc"] .sort-icon, th[data-direction="desc"] .sort-icon { color: white; }
         th { position: sticky; top: 0; z-index: 10; }
         .table-container::-webkit-scrollbar { height: 8px; }
         .table-container::-webkit-scrollbar-track { background: #e2e8f0; }
@@ -642,7 +745,7 @@
             <div id="mailtoButtonContainer" class="hidden mt-2"></div>
         </section>
         
-        <!-- Sección de Administrador (MODIFICADA CON EL NUEVO PANEL) -->
+        <!-- Sección de Administrador -->
         <section id="adminSection" class="hidden pt-4">
             <h2 class="text-xl font-semibold text-gray-700 mb-6 text-center">Panel de Administración</h2>
             <div class="message-placeholder p-3 rounded-md text-sm mb-4 hidden" id="adminMessageDiv"></div> 
@@ -653,7 +756,6 @@
             </form>
 
             <div id="adminContent" class="hidden space-y-6">
-                 <!-- Contenido de Cierre de Sesiones (Existente) -->
                 <div class="max-w-md mx-auto space-y-4">
                     <div class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded-md" role="alert">
                         <p class="font-bold">Acción Crítica</p>
@@ -663,24 +765,34 @@
                     <button type="button" id="closeOpenSessionsBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow-md">Cerrar Sesiones Abiertas</button>
                 </div>
                 <hr/>
-                <!-- ===== INICIO DEL NUEVO PANEL DE DATOS ===== -->
                 <div id="data-panel" data-loaded="false" class="space-y-8">
-                     <!-- Tabla de Usuarios Registrados -->
                     <div class="card p-6">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5"><h2 class="text-2xl font-bold mb-3 sm:mb-0" style="color: var(--tent-green);">Estudiantes Registrados</h2><button id="exportUsersBtn" class="btn-primary"><i data-lucide="download"></i>Exportar</button></div>
                         <div id="usersLoader" class="flex justify-center items-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-green"></div></div>
-                        <div id="usersTableContainer" class="table-container overflow-x-auto max-h-[60vh] rounded-lg border border-slate-200 hidden"><table class="min-w-full divide-y divide-slate-200"><thead class="table-header"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Nombre y Apellido</th><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Facultad</th><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Gmail</th><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Teléfono</th></tr></thead><tbody id="usersTableBody" class="bg-white divide-y divide-slate-200"></tbody></table></div>
+                        <div id="usersTableContainer" class="table-container overflow-x-auto max-h-[60vh] rounded-lg border border-slate-200 hidden">
+                            <table id="usersTable" class="min-w-full divide-y divide-slate-200"><thead class="table-header"><tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="fullName" data-direction="none"><div class="flex items-center"><span>Nombre y Apellido</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="faculty" data-direction="none"><div class="flex items-center"><span>Facultad</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="email" data-direction="none"><div class="flex items-center"><span>Gmail</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Teléfono</th>
+                            </tr></thead><tbody id="usersTableBody" class="bg-white divide-y divide-slate-200"></tbody></table>
+                        </div>
                         <p id="usersError" class="text-center text-red-600 font-medium py-4 hidden"></p>
                     </div>
-                     <!-- Tabla de Sesiones -->
                     <div class="card p-6">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5"><h2 class="text-2xl font-bold mb-3 sm:mb-0" style="color: var(--tent-green);">Sesiones de Check-in/Out</h2><button id="exportSessionsBtn" class="btn-primary"><i data-lucide="download"></i>Exportar</button></div>
                         <div id="sessionsLoader" class="flex justify-center items-center py-12"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-tent-green"></div></div>
-                        <div id="sessionsTableContainer" class="table-container overflow-x-auto max-h-[60vh] rounded-lg border border-slate-200 hidden"><table class="min-w-full divide-y divide-slate-200"><thead class="table-header"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Nombre y Apellido</th><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Entrada</th><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Salida</th><th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Tiempo Total</th></tr></thead><tbody id="sessionsTableBody" class="bg-white divide-y divide-slate-200"></tbody></table></div>
+                        <div id="sessionsTableContainer" class="table-container overflow-x-auto max-h-[60vh] rounded-lg border border-slate-200 hidden">
+                            <table id="sessionsTable" class="min-w-full divide-y divide-slate-200"><thead class="table-header"><tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="fullName" data-direction="none"><div class="flex items-center"><span>Nombre y Apellido</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="checkInTimestamp" data-direction="none"><div class="flex items-center"><span>Entrada</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="checkOutTimestamp" data-direction="none"><div class="flex items-center"><span>Salida</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider sortable-header" data-column="duration" data-direction="none"><div class="flex items-center"><span>Tiempo Total</span><span class="sort-icon ml-2"><i data-lucide="chevrons-up-down"></i></span></div></th>
+                            </tr></thead><tbody id="sessionsTableBody" class="bg-white divide-y divide-slate-200"></tbody></table>
+                        </div>
                         <p id="sessionsError" class="text-center text-red-600 font-medium py-4 hidden"></p>
                     </div>
                 </div>
-                <!-- ===== FIN DEL NUEVO PANEL DE DATOS ===== -->
                 <hr/>
                 <div class="max-w-md mx-auto">
                     <button type="button" id="adminLogoutBtn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md text-sm">Cerrar Sesión de Admin</button>
@@ -692,7 +804,6 @@
         <footer class="mt-8 text-center text-sm text-gray-500"><p>&copy; <span id="currentYear"></span> Tent Cowork. Todos los derechos reservados.</p></footer>
     </div>
     
-    <!-- Modal Olvidé mi Código (sin cambios) -->
     <div id="forgotCodeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 hidden">
         <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
             <div class="mt-3 text-center">
