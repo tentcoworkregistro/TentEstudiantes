@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- ===== NUEVAS LIBRERÍAS AÑADIDAS ===== -->
+    <!-- ===== LIBRERÍAS AÑADIDAS ===== -->
     <!-- SheetJS (para exportar a Excel .xlsx) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Lucide Icons (para los iconos de los botones) -->
@@ -34,9 +34,9 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // ===== CORRECCIÓN IMPORTANTE =====
-        // Usamos projectId para construir la ruta de Firestore, no appId.
-        const appId = firebaseConfig.projectId;
+        // ===== CORRECCIÓN FINAL =====
+        // Usamos el ID de la aplicación correcto para la ruta de Firestore.
+        const appId = 'tent-cowork-checkin'; 
         
         // --- Selectores de Elementos del DOM (sin cambios) ---
         const registrationSection = document.getElementById('registrationSection');
@@ -66,7 +66,7 @@
         const closeForgotCodeModalBtn = document.getElementById('closeForgotCodeModalBtn');
         const tabNavigation = document.getElementById('tab-navigation');
         
-        // --- Rutas de Colecciones de Firestore (sin cambios) ---
+        // --- Rutas de Colecciones de Firestore (ahora correctas) ---
         const studentsCollectionPath = `/artifacts/${appId}/public/data/students`;
         const sessionsCollectionPath = `/artifacts/${appId}/public/data/sessions`;
 
@@ -82,14 +82,13 @@
             }
         }
         
-        // --- Lógica de Autenticación y Estado (MODIFICADA) ---
+        // --- Lógica de Autenticación y Estado (sin cambios) ---
         function setupAuthListener() {
             onAuthStateChanged(auth, (user) => {
                 if (user && user.email) {
                     console.log("Admin logueado:", user.email);
                     if(adminLoginForm) adminLoginForm.classList.add('hidden');
                     if(adminContent) adminContent.classList.remove('hidden');
-                    // =====> LLAMADA PARA CARGAR EL NUEVO PANEL DE DATOS <=====
                     loadAdminDataPanel(); 
                 } else {
                     console.log("No hay admin logueado o es sesión anónima.");
