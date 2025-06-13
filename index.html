@@ -34,8 +34,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // ===== CORRECCIÓN FINAL =====
-        // Usamos el ID de la aplicación correcto para la ruta de Firestore.
         const appId = 'tent-cowork-checkin'; 
         
         // --- Selectores de Elementos del DOM (sin cambios) ---
@@ -66,9 +64,9 @@
         const closeForgotCodeModalBtn = document.getElementById('closeForgotCodeModalBtn');
         const tabNavigation = document.getElementById('tab-navigation');
         
-        // --- Rutas de Colecciones de Firestore (ahora correctas) ---
-        const studentsCollectionPath = `/artifacts/${appId}/public/data/students`;
-        const sessionsCollectionPath = `/artifacts/${appId}/public/data/sessions`;
+        // ===== CORRECCIÓN FINAL: Se eliminó el caracter `/` al inicio de las rutas =====
+        const studentsCollectionPath = `artifacts/${appId}/public/data/students`;
+        const sessionsCollectionPath = `artifacts/${appId}/public/data/sessions`;
 
         // Configuración de Tailwind para colores personalizados (sin cambios)
         tailwind.config = {
