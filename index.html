@@ -137,7 +137,8 @@
         
         function handleInitialNavigation() {
             const params = new URLSearchParams(window.location.search);
-            const modo = params.get('modo');
+            const modo = params.get('modo'); // Obtener el parámetro 'modo'
+            const view = params.get('view'); // Obtener el parámetro 'view'
             
             if (modo === 'registro') {
                 // MODO DE REGISTRO ÚNICO (para celulares vía QR)
@@ -307,7 +308,7 @@
             const email = forgotCodeForm.recoveryEmail.value.toLowerCase().trim();
             if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 if(forgotCodeMessageDiv) showMessage(forgotCodeMessageDiv, 'Por favor, ingresa un correo electrónico válido.', 'error');
-                if(forgotCodeLoadingIndicator) hideLoading(forgotCodeLoadingIndicator);
+                if(forgotCodeLoadingIndicator) hideLoading(loadingIndicator);
                 return;
             }
 
@@ -451,9 +452,11 @@
         });
 
     </script>
-    <!-- El bloque <style> se elimina para prevenir conflictos con el CDN de Tailwind -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-tent-orange selection:text-white" style="font-family: 'Inter', sans-serif;">
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4 selection:bg-tent-orange selection:text-white">
 
     <div class="w-full max-w-md bg-white shadow-xl rounded-lg p-6 relative"> 
         <header class="mb-6 text-center">
