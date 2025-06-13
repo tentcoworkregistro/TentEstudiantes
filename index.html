@@ -137,9 +137,9 @@
         
         function handleInitialNavigation() {
             const params = new URLSearchParams(window.location.search);
-            const view = params.get('view');
+            const modo = params.get('modo');
             
-            if (view === 'register') {
+            if (modo === 'registro') {
                 // MODO DE REGISTRO ÚNICO (para celulares vía QR)
                 if (tabNavigation) tabNavigation.classList.add('hidden'); // Ocultar las pestañas
                 navigateTo('registration'); // Mostrar solo la sección de registro
