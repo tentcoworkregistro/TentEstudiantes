@@ -34,8 +34,9 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // La variable appId ya estaba definida, la usamos
-        const appId = firebaseConfig.appId;
+        // ===== CORRECCIÓN IMPORTANTE =====
+        // Usamos projectId para construir la ruta de Firestore, no appId.
+        const appId = firebaseConfig.projectId;
         
         // --- Selectores de Elementos del DOM (sin cambios) ---
         const registrationSection = document.getElementById('registrationSection');
