@@ -530,23 +530,50 @@
             }
         }
         
-        function exportToXLSX(data, filename) {
+    function exportToXLSX(data, filename) {
              if (data.length === 0) {
                 showMessage(adminMessageDiv, "No hay datos en la tabla para exportar.", "info");
                 return;
             }
 
-            // Create a deep copy for manipulation
-            const dataForExport = JSON.parse(JSON.stringify(data));
-
             // Format data for export
-            const formattedData = dataForExport.map(item => {
+            const formattedData = data.map(item => {
                 if (filename.includes('sesiones')) {
+                    // Handle timestamps properly for export
+                    let checkInTime = null;
+                    let checkOutTime = null;
+                    let duration = 'En curso';
+
+                    if (item.checkInTimestamp) {
+                        checkInTime = item.checkInTimestamp.toDate ? item.checkInTimestamp.toDate() : new Date(item.checkInTimestamp.seconds * 1000);
+                    }
+                    
+                    if (item.checkOutTimestamp) {
+                        checkOutTime = item.checkOutTimestamp.toDate ? item.checkOutTimestamp.toDate() : new Date(item.checkOutTimestamp.seconds * 1000);
+                    }
+
+                    // Calculate duration properly
+                    if (checkInTime && checkOutTime) {
+                        const diffMs = checkOutTime - checkInTime;
+                        if (diffMs > 0) {
+                            const totalSeconds = Math.floor(diffMs / 1000);
+                            const hours = Math.floor(totalSeconds / 3600);
+                            const minutes = Math.floor((totalSeconds % 3600) / 60);
+                            duration = `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m`;
+                        }
+                    }
+
                     return {
                         "Nombre y Apellido": item.user?.fullName || 'N/A',
-                        "Entrada": item.checkInTimestamp ? formatTimestampForPanel(new Timestamp(item.checkInTimestamp.seconds, item.checkInTimestamp.nanoseconds)) : 'N/A',
-                        "Salida": item.checkOutTimestamp ? formatTimestampForPanel(new Timestamp(item.checkOutTimestamp.seconds, item.checkOutTimestamp.nanoseconds)) : 'N/A',
-                        "Tiempo Total": formatDurationForDisplay(calculateDurationForPanel(item.checkInTimestamp, item.checkOutTimestamp))
+                        "Entrada": checkInTime ? checkInTime.toLocaleString('es-AR', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit', hour12: false
+                        }) : 'N/A',
+                        "Salida": checkOutTime ? checkOutTime.toLocaleString('es-AR', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit', hour12: false
+                        }) : 'N/A',
+                        "Tiempo Total": duration
                     };
                 }
                 return { // For students
